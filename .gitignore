@@ -7,6 +7,13 @@
 *.test
 *.out
 
+# Environment & Logs
+.env
+.env.*
+!.env.example
+*.log
+*.tmp
+
 # Go workspace file
 go.work
 go.work.sum
@@ -20,3 +27,7 @@ vendor/
 *.swp
 *.swo
 *~
+
+# OS generated files
+.DS_Store
+Thumbs.db

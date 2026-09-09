@@ -4,7 +4,7 @@
 
 Tugas ini merupakan implementasi **REST API menggunakan Go dan Fiber v2** dengan fokus pada pemahaman HTTP dan prinsip RESTful API.
 
-Implementasi mencakup operasi CRUD, penggunaan HTTP method, HTTP status code, validasi request, pagination, filtering, searching, sorting, serta perbedaan antara `PUT` dan `PATCH`.
+Implementasi mencakup operasi CRUD, penggunaan HTTP method, HTTP status code, validasi request, pagination, filtering, searching, sorting, serta perbedaan antara `PUT` dan `PATCH`. 
 
 ## Tujuan Pembelajaran
 

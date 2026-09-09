@@ -4,7 +4,7 @@
 
 Tugas ini merupakan tahap awal pembelajaran backend menggunakan bahasa **Go**.
 
-Materi yang dipraktikkan mencakup sintaks dasar Go, penggunaan variabel, slice, map, pointer, struct, method, serta pengenalan framework **Fiber v2** melalui aplikasi sederhana.
+Materi yang dipraktikkan mencakup sintaks dasar Go, penggunaan variabel, slice, map, pointer, struct, method, serta pengenalan framework **Fiber v2** melalui aplikasi sederhana. 
 
 ## Struktur
 

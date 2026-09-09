@@ -2,17 +2,18 @@
 
 Repository ini berisi kumpulan tugas dan latihan praktikum untuk mata kuliah **Pemrograman Backend Lanjut (SIP375)**.
 
-Project dikembangkan secara bertahap mengikuti modul pembelajaran, mulai dari dasar bahasa Go, pengembangan REST API, hingga integrasi database PostgreSQL dan penerapan Repository Pattern.
+Project dikembangkan secara bertahap mengikuti modul pembelajaran, mulai dari dasar bahasa Go, pengembangan REST API, integrasi database PostgreSQL, penerapan Repository Pattern, hingga penerapan Clean Architecture dan pengujian unit.
 
 ---
 
 ## Daftar Modul
 
-| Modul                  | Topik                         |  Status |
-| :--------------------- | :---------------------------- | :-----: |
+|          Modul         | Topik                         |  Status |
+| :--------------------: | :---------------------------- | :-----: |
 | [Tugas 01](./tugas01/) | Persiapan & Sintaks Go        | Selesai |
 | [Tugas 02](./tugas02/) | REST API & HTTP Deep Dive     | Selesai |
 | [Tugas 03](./tugas03/) | Database & Repository Pattern | Selesai |
+| [Tugas 04](./tugas04/) | Clean Architecture            | Selesai |
 
 ---
 
@@ -24,14 +25,14 @@ Modul pertama berfokus pada pengenalan lingkungan pengembangan Go dan dasar-dasa
 
 Materi yang dipelajari:
 
-* Persiapan environment Go.
-* Struktur program Go.
-* Variabel dan tipe data.
-* Slice.
-* Map.
-* Pointer.
-* Struct.
-* Method.
+* Persiapan environment Go
+* Struktur program Go
+* Variabel dan tipe data
+* Slice
+* Map
+* Pointer
+* Struct
+* Method
 
 **Dokumentasi:** [Tugas 01](./tugas01/)
 
@@ -43,21 +44,21 @@ Modul kedua mengembangkan dasar Go menjadi REST API menggunakan Fiber v2.
 
 Implementasi utama:
 
-* REST API.
-* HTTP method.
-* CRUD Student.
-* Request dan response JSON.
-* Query parameter.
-* Pagination.
-* Search.
-* Sorting.
-* Filtering.
-* Validation.
-* PUT dan PATCH.
-* Middleware.
-* Error handling.
-* DTO.
-* In-memory data storage.
+* REST API
+* HTTP method
+* CRUD Student
+* Request dan response JSON
+* Query parameter
+* Pagination
+* Search
+* Sorting
+* Filtering
+* Validation
+* PUT dan PATCH
+* Middleware
+* Error handling
+* DTO
+* In-memory data storage
 
 Pada tahap ini data masih disimpan di memory menggunakan `slice`, sehingga data akan hilang ketika aplikasi dihentikan atau dijalankan kembali.
 
@@ -71,20 +72,20 @@ Modul ketiga mengembangkan REST API dari Modul 2 dengan mengganti penyimpanan da
 
 Implementasi utama:
 
-* PostgreSQL.
-* `pgx/v5`.
-* `pgxpool` connection pooling.
-* Database migration.
-* Repository Pattern.
-* Separation of concerns.
-* Parameterized query.
-* Database constraint.
-* Database index.
-* Filtering dan searching menggunakan SQL.
-* Sorting dan pagination pada database.
-* Error translation.
-* Context timeout.
-* Database health check.
+* PostgreSQL
+* `pgx/v5`
+* `pgxpool` connection pooling
+* Database migration
+* Repository Pattern
+* Separation of concerns
+* Parameterized query
+* Database constraint
+* Database index
+* Filtering dan searching menggunakan SQL
+* Sorting dan pagination pada database
+* Error translation
+* Context timeout
+* Database health check
 
 Dengan perubahan ini, data mahasiswa menjadi **persistent** dan aplikasi memiliki struktur yang lebih mendekati arsitektur backend production.
 
@@ -92,10 +93,47 @@ Dengan perubahan ini, data mahasiswa menjadi **persistent** dan aplikasi memilik
 
 ---
 
+### Modul 4 — Clean Architecture
+
+Modul keempat melakukan restrukturisasi terhadap API Students dari Modul 3 menggunakan pendekatan **Clean Architecture**.
+
+Fokus utama modul:
+
+* Clean Architecture
+* Dependency Rule
+* Separation of business rules
+* Repository layer
+* Service layer
+* Helper dan presenter
+* Middleware
+* Structured logging
+* Unit testing
+* Global error handling
+* Graceful shutdown
+* Layer leakage analysis
+* Mempertahankan behavior API dari modul sebelumnya
+
+Struktur aplikasi dipisahkan berdasarkan tanggung jawab sehingga business rules tidak bergantung langsung pada framework maupun database.
+
+Business rules utama ditempatkan pada service layer, meliputi:
+
+* `ValidateCreate`
+* `ValidateReplace`
+* `ApplyPatch`
+* `IsEmptyPatch`
+* `CountTotalPages`
+
+Modul ini juga menambahkan unit test untuk business rules menggunakan package `testing`, serta structured logging menggunakan `log/slog` dan log rotation menggunakan `lumberjack`.
+
+**Dokumentasi:** [Tugas 04](./tugas04/)
+
+---
+
 ## Struktur Repository
 
-```text id="s8d2jp"
+```text
 go-workspace/
+
 ├── README.md
 │
 ├── tugas01/
@@ -116,18 +154,41 @@ go-workspace/
 │   ├── helper.go
 │   └── handler.go
 │
-└── tugas03/
+├── tugas03/
+│   ├── README.md
+│   ├── .env.example
+│   ├── .gitignore
+│   ├── go.mod
+│   ├── go.sum
+│   ├── main.go
+│   ├── handler.go
+│   ├── helper.go
+│   │
+│   ├── config/
+│   │   └── env.go
+│   │
+│   ├── database/
+│   │   └── postgres.go
+│   │
+│   ├── app/
+│   │   ├── model/
+│   │   │   └── student.go
+│   │   └── repository/
+│   │       └── student_repository.go
+│   │
+│   └── migrations/
+│       └── 001_create_students.sql
+│
+└── tugas04/
     ├── README.md
     ├── .env.example
     ├── .gitignore
     ├── go.mod
     ├── go.sum
     ├── main.go
-    ├── handler.go
-    ├── helper.go
     │
     ├── config/
-    │   └── env.go
+    │   └── app.go
     │
     ├── database/
     │   └── postgres.go
@@ -135,12 +196,29 @@ go-workspace/
     ├── app/
     │   ├── model/
     │   │   └── student.go
-    │   └── repository/
-    │       └── student_repository.go
+    │   ├── repository/
+    │   │   └── student_repository.go
+    │   └── service/
+    │       ├── student_service.go
+    │       └── student_rules_test.go
+    │
+    ├── helper/
+    │   └── ...
+    │
+    ├── middleware/
+    │   └── ...
+    │
+    ├── route/
+    │   └── route.go
+    │
+    ├── logs/
+    │   └── app.log
     │
     └── migrations/
-        └── 001_create_students.sql
+        └── ...
 ```
+
+> Struktur file dapat berkembang mengikuti kebutuhan masing-masing modul.
 
 ---
 
@@ -157,35 +235,73 @@ Teknologi yang digunakan berkembang seiring dengan bertambahnya materi pada seti
 | pgxpool      | Database connection pooling  |
 | godotenv     | Environment configuration    |
 | SQL          | Query dan database migration |
+| `log/slog`   | Structured logging           |
+| `lumberjack` | Log rotation                 |
+| `testing`    | Unit testing                 |
 | cURL         | API testing                  |
 | Git & GitHub | Version control              |
 
 ---
 
-## Perkembangan Project
+## Arsitektur Project
 
-Repository ini dikembangkan secara bertahap:
+Perkembangan arsitektur backend pada repository ini dilakukan secara bertahap.
 
-```text id="q5p2qz"
+```text
 Go Fundamentals
-      |
-      v
+       |
+       v
 REST API
-      |
-      v
+       |
+       v
 CRUD & HTTP
-      |
-      v
+       |
+       v
 PostgreSQL
-      |
-      v
+       |
+       v
 Repository Pattern
-      |
-      v
+       |
+       v
 Database-backed REST API
+       |
+       v
+Clean Architecture
+       |
+       v
+Business Rules & Unit Testing
+       |
+       v
+Structured Logging
 ```
 
-Setiap modul membangun kemampuan dari modul sebelumnya sehingga implementasi dapat berkembang secara bertahap dari konsep dasar menuju backend application yang lebih terstruktur.
+Setiap modul membangun kemampuan dari modul sebelumnya. Dengan pendekatan ini, project berkembang dari implementasi sederhana menuju aplikasi backend yang memiliki pemisahan tanggung jawab dan struktur yang lebih terorganisir.
+
+---
+
+## API Students
+
+Mulai Modul 2 hingga Modul 4, project menggunakan API Students sebagai project utama yang dikembangkan secara bertahap.
+
+Base URL:
+
+```text
+http://localhost:3000/api/v1
+```
+
+Endpoint utama:
+
+| Method | Endpoint        | Keterangan                         |
+| :----: | :-------------- | :--------------------------------- |
+|   GET  | `/health`       | Health check                       |
+|   GET  | `/students`     | Mendapatkan daftar student         |
+|   GET  | `/students/:id` | Mendapatkan student berdasarkan ID |
+|  POST  | `/students`     | Menambahkan student                |
+|   PUT  | `/students/:id` | Mengganti data student             |
+|  PATCH | `/students/:id` | Memperbarui sebagian data student  |
+| DELETE | `/students/:id` | Menghapus student                  |
+
+Behavior API dipertahankan ketika project berpindah dari Modul 3 ke Modul 4. Perubahan utama pada Modul 4 berada pada struktur internal dan arsitektur aplikasi, bukan pada kontrak HTTP API.
 
 ---
 
@@ -195,31 +311,47 @@ Setiap modul memiliki dokumentasi masing-masing melalui file `README.md`.
 
 Untuk mempelajari modul tertentu:
 
-```bash id="v5y8fh"
-cd tugas03
+```bash
+cd tugas04
 ```
 
 Kemudian ikuti instruksi yang terdapat pada README modul tersebut.
 
-Contoh untuk Modul 3:
+Contoh menjalankan Modul 4:
 
-```bash id="0xy7ja"
-cd tugas03
+```bash
+cd tugas04
+
 go mod tidy
+
 go run .
 ```
 
-Konfigurasi dan kebutuhan database untuk Modul 3 dijelaskan secara lengkap pada [README Tugas 03](./tugas03/).
+Untuk menjalankan unit test:
+
+```bash
+go test ./app/service/... -v
+```
+
+Untuk melakukan build dan pemeriksaan kode:
+
+```bash
+go build ./...
+go vet ./...
+```
+
+Konfigurasi dan kebutuhan masing-masing modul dijelaskan secara lengkap pada README modul terkait.
 
 ---
 
 ## Status
 
-| Modul |  Status | Fokus Utama                     |
-| :---: | :-----: | :------------------------------ |
-|   01  | Selesai | Fundamental Go                  |
-|   02  | Selesai | REST API & HTTP                 |
-|   03  | Selesai | PostgreSQL & Repository Pattern |
+| Modul |  Status | Fokus Utama                           |
+| :---: | :-----: | :------------------------------------ |
+|   01  | Selesai | Fundamental Go                        |
+|   02  | Selesai | REST API & HTTP                       |
+|   03  | Selesai | PostgreSQL & Repository Pattern       |
+|   04  | Selesai | Clean Architecture, Testing & Logging |
 
 ---
 
@@ -229,7 +361,7 @@ Repository ini merupakan bagian dari proses pembelajaran **Pemrograman Backend L
 
 Setiap modul didokumentasikan secara terpisah agar implementasi, konsep, dan perkembangan project dapat ditelusuri dengan lebih mudah.
 
-Pengembangan kode memanfaatkan bantuan AI untuk debugging dan penyusunan struktur pada beberapa bagian, sementara implementasi dan penyesuaian logika dilakukan sesuai kebutuhan masing-masing modul.
+Pengembangan kode memanfaatkan bantuan AI untuk debugging, eksplorasi konsep, dan penyusunan struktur pada beberapa bagian. Implementasi dan penyesuaian logika dilakukan sesuai kebutuhan masing-masing modul.
 
 ---
 
@@ -237,6 +369,5 @@ Pengembangan kode memanfaatkan bantuan AI untuk debugging dan penyusunan struktu
 
 Source code lengkap tersedia pada repository:
 
-```text id="a6eqk2"
+**GitHub:**
 https://github.com/vxpal3n/go-workspace
-```

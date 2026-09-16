@@ -1,53 +1,83 @@
 package main
 
 import (
-    "context"
-    "log/slog"
-    "os"
-    "os/signal"
-    "syscall"
-    "time"
+	"context"
+	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-    "tugas05/app/repository"
-    "tugas05/app/service"
-    "tugas05/config"
-    "tugas05/database"
+	"tugas05/app/repository"
+	"tugas05/app/service"
+	"tugas05/config"
+	"tugas05/database"
+	"tugas05/helper"
+	"tugas05/route"
 )
 
+const minSecretLength = 32
+
 func main() {
-    config.LoadEnv()
-    logger := config.NewLogger()
+	config.LoadEnv()
+	logger := config.NewLogger()
 
-    pool, err := database.NewPool(context.Background())
-    if err != nil {
-        logger.Error("gagal terhubung ke database", slog.String("error", err.Error()))
-        os.Exit(1)
-    }
-    defer pool.Close()
+	jwtSecret := config.GetEnv("JWT_SECRET", "")
+	if len(jwtSecret) < minSecretLength {
+		logger.Error("JWT_SECRET tidak diisi atau terlalu pendek",
+			slog.Int("minimal_karakter", minSecretLength))
+		os.Exit(1)
+	}
 
-    studentRepo := repository.NewStudentRepository(pool)
-    studentService := service.NewStudentService(studentRepo)
+	pool, err := database.NewPool(context.Background())
+	if err != nil {
+		logger.Error("gagal terhubung ke database", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	defer pool.Close()
 
-    app := config.NewApp(logger, pool, studentService)
+	jwtManager := helper.NewJWTManager(
+		jwtSecret,
+		config.GetEnv("JWT_ISSUER", "praktikum-backend"),
+		time.Duration(config.GetEnvInt("JWT_ACCESS_TTL_MINUTES", 15))*time.Minute,
+	)
 
-    port := config.GetEnv("APP_PORT", "3000")
-    go func() {
-        if err := app.Listen(":" + port); err != nil {
-            logger.Error("server berhenti", slog.String("error", err.Error()))
-            os.Exit(1)
-        }
-    }()
-    logger.Info("server berjalan", slog.String("port", port))
+	studentRepository := repository.NewStudentRepository(pool)
+	tokenRepository := repository.NewTokenRepository(pool)
 
-    quit := make(chan os.Signal, 1)
-    signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-    <-quit
-    logger.Info("sinyal berhenti diterima, menutup server")
+	authService := service.NewAuthService(
+		studentRepository,
+		tokenRepository,
+		jwtManager,
+		time.Duration(config.GetEnvInt("JWT_REFRESH_TTL_DAYS", 7))*24*time.Hour,
+	)
+	studentService := service.NewStudentService(studentRepository)
 
-    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-    defer cancel()
-    if err := app.ShutdownWithContext(ctx); err != nil {
-        logger.Error("gagal menutup server dengan rapi", slog.String("error", err.Error()))
-    }
-    logger.Info("server berhenti dengan rapi")
+	app := config.NewApp(logger, route.Dependencies{
+		Pool:           pool,
+		JWT:            jwtManager,
+		StudentService: studentService,
+		AuthService:    authService,
+	})
+
+	port := config.GetEnv("APP_PORT", "3000")
+	go func() {
+		if err := app.Listen(":" + port); err != nil {
+			logger.Error("server berhenti", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+	}()
+	logger.Info("server berjalan", slog.String("port", port))
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	logger.Info("sinyal berhenti diterima, menutup server")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := app.ShutdownWithContext(ctx); err != nil {
+		logger.Error("gagal menutup server dengan rapi", slog.String("error", err.Error()))
+	}
+	logger.Info("server berhenti dengan rapi")
 }

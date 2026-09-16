@@ -2,7 +2,6 @@ package service
 
 import (
     "errors"
-    "strconv"
     "strings"
 
     "github.com/gofiber/fiber/v2"
@@ -61,35 +60,6 @@ func (s *StudentService) Get(c *fiber.Ctx) error {
         return translateError(c, err, "gagal mengambil data student")
     }
     return helper.Success(c, fiber.StatusOK, "student ditemukan", student)
-}
-
-func (s *StudentService) Create(c *fiber.Ctx) error {
-    ctx, cancel := helper.RequestContext(c)
-    defer cancel()
-
-    var req model.CreateStudentRequest
-    if err := c.BodyParser(&req); err != nil {
-        return helper.Fail(c, fiber.StatusBadRequest, "body harus berupa JSON yang valid")
-    }
-    req.NIM = strings.TrimSpace(req.NIM)
-    req.Name = strings.TrimSpace(req.Name)
-
-    if errs := ValidateCreate(req); len(errs) > 0 {
-        return helper.FailValidation(c, errs)
-    }
-
-    newStudent := model.Student{
-        NIM:      req.NIM,
-        Name:     req.Name,
-        Grade:    req.Grade,
-        IsActive: true,
-    }
-    saved, err := s.repo.Create(ctx, newStudent)
-    if err != nil {
-        return translateError(c, err, "gagal menyimpan student")
-    }
-    location := c.BaseURL() + "/api/v1/students/" + strconv.Itoa(saved.ID)
-    return helper.Created(c, "student berhasil dibuat", saved, location)
 }
 
 func (s *StudentService) Replace(c *fiber.Ctx) error {

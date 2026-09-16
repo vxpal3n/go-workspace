@@ -1,373 +1,380 @@
-# Go Workspace — Pemrograman Backend Lanjut
+# Go Workspace – Pemrograman Backend Lanjut (SIP375)
 
-Repository ini berisi kumpulan tugas dan latihan praktikum untuk mata kuliah **Pemrograman Backend Lanjut (SIP375)**.
+Repositori ini merupakan kumpulan tugas praktikum mata kuliah **Pemrograman Backend Lanjut (SIP375)**.
 
-Project dikembangkan secara bertahap mengikuti modul pembelajaran, mulai dari dasar bahasa Go, pengembangan REST API, integrasi database PostgreSQL, penerapan Repository Pattern, hingga penerapan Clean Architecture dan pengujian unit.
+Setiap modul dikerjakan secara bertahap dengan menerapkan konsep backend development menggunakan Go, mulai dari pengenalan sintaks, REST API, database, Clean Architecture, hingga authentication dan security.
 
----
-
-## Daftar Modul
-
-|          Modul         | Topik                         |  Status |
-| :--------------------: | :---------------------------- | :-----: |
-| [Tugas 01](./tugas01/) | Persiapan & Sintaks Go        | Selesai |
-| [Tugas 02](./tugas02/) | REST API & HTTP Deep Dive     | Selesai |
-| [Tugas 03](./tugas03/) | Database & Repository Pattern | Selesai |
-| [Tugas 04](./tugas04/) | Clean Architecture            | Selesai |
+**Author:** Valentino Chandra  
+**Semester:** Gasal 2026/2027  
+**Dosen:** Rachman Sinatriya Marjianto, B.Eng, M.Sc.
 
 ---
 
-## Progress Pembelajaran
+## Struktur Repositori
 
-### Modul 1 — Persiapan & Sintaks Go
-
-Modul pertama berfokus pada pengenalan lingkungan pengembangan Go dan dasar-dasar bahasa Go.
-
-Materi yang dipelajari:
-
-* Persiapan environment Go
-* Struktur program Go
-* Variabel dan tipe data
-* Slice
-* Map
-* Pointer
-* Struct
-* Method
-
-**Dokumentasi:** [Tugas 01](./tugas01/)
+| Folder                  | Modul   | Deskripsi                                 |
+| :---------------------- | :------ | :---------------------------------------- |
+| [`tugas01/`](./tugas01) | Modul 1 | Persiapan lingkungan dan sintaks dasar Go |
+| [`tugas02/`](./tugas02) | Modul 2 | REST API dan HTTP Deep Dive               |
+| [`tugas03/`](./tugas03) | Modul 3 | Database dan Repository Pattern           |
+| [`tugas04/`](./tugas04) | Modul 4 | Clean Architecture                        |
+| [`tugas05/`](./tugas05) | Modul 5 | Authentication & Security                 |
 
 ---
 
-### Modul 2 — REST API & HTTP Deep Dive
+## Modul 1 – Persiapan & Sintaks Go
 
-Modul kedua mengembangkan dasar Go menjadi REST API menggunakan Fiber v2.
-
-Implementasi utama:
-
-* REST API
-* HTTP method
-* CRUD Student
-* Request dan response JSON
-* Query parameter
-* Pagination
-* Search
-* Sorting
-* Filtering
-* Validation
-* PUT dan PATCH
-* Middleware
-* Error handling
-* DTO
-* In-memory data storage
-
-Pada tahap ini data masih disimpan di memory menggunakan `slice`, sehingga data akan hilang ketika aplikasi dihentikan atau dijalankan kembali.
-
-**Dokumentasi:** [Tugas 02](./tugas02/)
-
----
-
-### Modul 3 — Database & Repository Pattern
-
-Modul ketiga mengembangkan REST API dari Modul 2 dengan mengganti penyimpanan data dari memory menjadi database PostgreSQL.
-
-Implementasi utama:
-
-* PostgreSQL
-* `pgx/v5`
-* `pgxpool` connection pooling
-* Database migration
-* Repository Pattern
-* Separation of concerns
-* Parameterized query
-* Database constraint
-* Database index
-* Filtering dan searching menggunakan SQL
-* Sorting dan pagination pada database
-* Error translation
-* Context timeout
-* Database health check
-
-Dengan perubahan ini, data mahasiswa menjadi **persistent** dan aplikasi memiliki struktur yang lebih mendekati arsitektur backend production.
-
-**Dokumentasi:** [Tugas 03](./tugas03/)
-
----
-
-### Modul 4 — Clean Architecture
-
-Modul keempat melakukan restrukturisasi terhadap API Students dari Modul 3 menggunakan pendekatan **Clean Architecture**.
-
-Fokus utama modul:
-
-* Clean Architecture
-* Dependency Rule
-* Separation of business rules
-* Repository layer
-* Service layer
-* Helper dan presenter
-* Middleware
-* Structured logging
-* Unit testing
-* Global error handling
-* Graceful shutdown
-* Layer leakage analysis
-* Mempertahankan behavior API dari modul sebelumnya
-
-Struktur aplikasi dipisahkan berdasarkan tanggung jawab sehingga business rules tidak bergantung langsung pada framework maupun database.
-
-Business rules utama ditempatkan pada service layer, meliputi:
-
-* `ValidateCreate`
-* `ValidateReplace`
-* `ApplyPatch`
-* `IsEmptyPatch`
-* `CountTotalPages`
-
-Modul ini juga menambahkan unit test untuk business rules menggunakan package `testing`, serta structured logging menggunakan `log/slog` dan log rotation menggunakan `lumberjack`.
-
-**Dokumentasi:** [Tugas 04](./tugas04/)
-
----
-
-## Struktur Repository
+Folder:
 
 ```text
-go-workspace/
-
-├── README.md
-│
-├── tugas01/
-│   ├── README.md
-│   ├── fiber/
-│   │   └── main.go
-│   └── syntax/
-│       ├── variabel/
-│       ├── pointer/
-│       └── struct/
-│
-├── tugas02/
-│   ├── README.md
-│   ├── go.mod
-│   ├── go.sum
-│   ├── main.go
-│   ├── model.go
-│   ├── helper.go
-│   └── handler.go
-│
-├── tugas03/
-│   ├── README.md
-│   ├── .env.example
-│   ├── .gitignore
-│   ├── go.mod
-│   ├── go.sum
-│   ├── main.go
-│   ├── handler.go
-│   ├── helper.go
-│   │
-│   ├── config/
-│   │   └── env.go
-│   │
-│   ├── database/
-│   │   └── postgres.go
-│   │
-│   ├── app/
-│   │   ├── model/
-│   │   │   └── student.go
-│   │   └── repository/
-│   │       └── student_repository.go
-│   │
-│   └── migrations/
-│       └── 001_create_students.sql
-│
-└── tugas04/
-    ├── README.md
-    ├── .env.example
-    ├── .gitignore
-    ├── go.mod
-    ├── go.sum
-    ├── main.go
-    │
-    ├── config/
-    │   └── app.go
-    │
-    ├── database/
-    │   └── postgres.go
-    │
-    ├── app/
-    │   ├── model/
-    │   │   └── student.go
-    │   ├── repository/
-    │   │   └── student_repository.go
-    │   └── service/
-    │       ├── student_service.go
-    │       └── student_rules_test.go
-    │
-    ├── helper/
-    │   └── ...
-    │
-    ├── middleware/
-    │   └── ...
-    │
-    ├── route/
-    │   └── route.go
-    │
-    ├── logs/
-    │   └── app.log
-    │
-    └── migrations/
-        └── ...
+tugas01/
 ```
 
-> Struktur file dapat berkembang mengikuti kebutuhan masing-masing modul.
+Modul pertama berfokus pada persiapan lingkungan pengembangan Go dan pemahaman sintaks dasar.
+
+Materi yang diterapkan meliputi:
+
+* Variabel.
+* Slice.
+* Map.
+* Pointer.
+* Struct.
+* Method.
+* Hello World menggunakan Fiber.
+
+Dokumentasi modul:
+
+[`tugas01/README.md`](./tugas01/README.md)
 
 ---
 
-## Teknologi
+## Modul 2 – REST API & HTTP Deep Dive
 
-Teknologi yang digunakan berkembang seiring dengan bertambahnya materi pada setiap modul.
-
-| Teknologi    | Penggunaan                   |
-| :----------- | :--------------------------- |
-| Go           | Bahasa pemrograman utama     |
-| Fiber v2     | Web framework                |
-| PostgreSQL   | Database relasional          |
-| pgx/v5       | PostgreSQL driver            |
-| pgxpool      | Database connection pooling  |
-| godotenv     | Environment configuration    |
-| SQL          | Query dan database migration |
-| `log/slog`   | Structured logging           |
-| `lumberjack` | Log rotation                 |
-| `testing`    | Unit testing                 |
-| cURL         | API testing                  |
-| Git & GitHub | Version control              |
-
----
-
-## Arsitektur Project
-
-Perkembangan arsitektur backend pada repository ini dilakukan secara bertahap.
+Folder:
 
 ```text
-Go Fundamentals
-       |
-       v
-REST API
-       |
-       v
-CRUD & HTTP
-       |
-       v
-PostgreSQL
-       |
-       v
-Repository Pattern
-       |
-       v
-Database-backed REST API
-       |
-       v
-Clean Architecture
-       |
-       v
-Business Rules & Unit Testing
-       |
-       v
-Structured Logging
+tugas02/
 ```
 
-Setiap modul membangun kemampuan dari modul sebelumnya. Dengan pendekatan ini, project berkembang dari implementasi sederhana menuju aplikasi backend yang memiliki pemisahan tanggung jawab dan struktur yang lebih terorganisir.
+Modul kedua membangun REST API untuk entitas `Student` menggunakan Go dan Fiber v2.
+
+Fitur utama:
+
+* RESTful endpoint.
+* HTTP method GET, POST, PUT, PATCH, dan DELETE.
+* HTTP status code yang sesuai.
+* Paginasi.
+* Search.
+* Sorting.
+* Filtering.
+* Validasi request.
+* Error handling.
+* Perbedaan PUT dan PATCH.
+
+Dokumentasi lengkap:
+
+[`tugas02/README.md`](./tugas02/README.md)
 
 ---
 
-## API Students
+## Modul 3 – Database & Repository Pattern
 
-Mulai Modul 2 hingga Modul 4, project menggunakan API Students sebagai project utama yang dikembangkan secara bertahap.
-
-Base URL:
+Folder:
 
 ```text
-http://localhost:3000/api/v1
+tugas03/
 ```
 
-Endpoint utama:
+Modul ketiga mengembangkan API Students dengan penyimpanan permanen menggunakan **PostgreSQL**.
 
-| Method | Endpoint        | Keterangan                         |
-| :----: | :-------------- | :--------------------------------- |
-|   GET  | `/health`       | Health check                       |
-|   GET  | `/students`     | Mendapatkan daftar student         |
-|   GET  | `/students/:id` | Mendapatkan student berdasarkan ID |
-|  POST  | `/students`     | Menambahkan student                |
-|   PUT  | `/students/:id` | Mengganti data student             |
-|  PATCH | `/students/:id` | Memperbarui sebagian data student  |
-| DELETE | `/students/:id` | Menghapus student                  |
+Konsep yang diterapkan:
 
-Behavior API dipertahankan ketika project berpindah dari Modul 3 ke Modul 4. Perubahan utama pada Modul 4 berada pada struktur internal dan arsitektur aplikasi, bukan pada kontrak HTTP API.
+* PostgreSQL.
+* `pgx/v5` dan `pgxpool`.
+* Database migration.
+* Repository Pattern.
+* Parameterized query.
+* Filtering dan search melalui SQL.
+* Sorting dengan whitelist.
+* Pagination pada database.
+* Translasi database error menjadi HTTP response.
+
+Struktur repository digunakan untuk memisahkan logika penyimpanan data dari komponen API.
+
+Dokumentasi modul:
+
+[`tugas03/README.md`](./tugas03/README.md)
 
 ---
 
-## Cara Menggunakan Repository
+## Modul 4 – Clean Architecture
 
-Setiap modul memiliki dokumentasi masing-masing melalui file `README.md`.
+Folder:
 
-Untuk mempelajari modul tertentu:
+```text
+tugas04/
+```
+
+Modul keempat melakukan restrukturisasi API Students ke dalam pendekatan **Clean Architecture**.
+
+Struktur aplikasi dipisahkan menjadi beberapa bagian:
+
+```text
+app/
+├── model/
+├── repository/
+└── service/
+
+helper/
+middleware/
+route/
+config/
+database/
+migrations/
+```
+
+Konsep utama yang diterapkan:
+
+* Dependency Rule.
+* Separation of Concerns.
+* Business Rules.
+* Repository sebagai gateway database.
+* Helper sebagai presenter dan request reader.
+* Middleware untuk cross-cutting concerns.
+* Structured logging.
+* Unit testing untuk business rules.
+
+Business rules dipisahkan dari Fiber dan database sehingga dapat diuji secara independen. Struktur ini menjadi fondasi untuk pengembangan authentication pada Modul 5.
+
+Dokumentasi modul:
+
+[`tugas04/README.md`](./tugas04/README.md)
+
+---
+
+## Modul 5 – Authentication & Security
+
+Folder:
+
+```text
+tugas05/
+```
+
+Modul kelima mengembangkan hasil Modul 4 dengan menjadikan `Student` sebagai **entitas authentication**.
+
+Fitur authentication:
+
+* Register.
+* Login.
+* Logout.
+* Refresh token.
+* Profile `/auth/me`.
+* JWT access token.
+* bcrypt password hashing.
+* Refresh token rotation.
+* Refresh token hashing menggunakan SHA-256.
+
+Fitur security:
+
+* Authentication middleware.
+* Rate limiter pada login.
+* CORS policy.
+* Body limit 1 MB.
+* Validasi JWT secret.
+* Mitigasi timing attack.
+* Pencegahan JWT algorithm confusion.
+* Pencegahan mass assignment pada `role`.
+* Password tidak pernah dikirimkan melalui JSON response.
+
+Endpoint authentication:
+
+| Method | Endpoint                | Keterangan           |
+| :----- | :---------------------- | :------------------- |
+| `POST` | `/api/v1/auth/register` | Registrasi student   |
+| `POST` | `/api/v1/auth/login`    | Login                |
+| `POST` | `/api/v1/auth/refresh`  | Refresh access token |
+| `POST` | `/api/v1/auth/logout`   | Logout               |
+| `GET`  | `/api/v1/auth/me`       | Profil pengguna      |
+
+Endpoint student pada Modul 5 dilindungi authentication:
+
+| Method   | Endpoint               | Keterangan      |
+| :------- | :--------------------- | :-------------- |
+| `GET`    | `/api/v1/students`     | Daftar student  |
+| `GET`    | `/api/v1/students/:id` | Detail student  |
+| `PUT`    | `/api/v1/students/:id` | Replace student |
+| `PATCH`  | `/api/v1/students/:id` | Partial update  |
+| `DELETE` | `/api/v1/students/:id` | Hapus student   |
+
+Pembuatan student tidak lagi dilakukan melalui `POST /students`. Registrasi akun dilakukan melalui:
+
+```text
+POST /api/v1/auth/register
+```
+
+Dokumentasi lengkap:
+
+[`tugas05/README.md`](./tugas05/README.md)
+
+---
+
+## Perkembangan Arsitektur
+
+Repositori ini dikembangkan secara bertahap dari modul ke modul:
+
+```text
+┌─────────────────────────────────────┐
+│  Modul 1 — Sintaks Go & Fiber       │
+└─────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────┐
+│  Modul 2 — REST API & HTTP          │
+└─────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────┐
+│  Modul 3 — PostgreSQL & Repository  │
+│            Pattern                  │
+└─────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────┐
+│  Modul 4 — Clean Architecture       │
+└─────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────┐
+│  Modul 5 — Authentication &         │
+│            Security                 │
+└─────────────────────────────────────┘
+```
+
+Setiap modul mempertahankan hasil modul sebelumnya dan mengembangkannya dengan konsep baru.
+
+---
+
+## Teknologi Utama
+
+| Teknologi     | Penggunaan                    |
+| :------------ | :---------------------------- |
+| Go            | Bahasa pemrograman utama      |
+| Fiber v2      | Web framework                 |
+| PostgreSQL    | Database                      |
+| pgx/v5        | PostgreSQL driver             |
+| JWT           | Access token                  |
+| bcrypt        | Password hashing              |
+| SHA-256       | Refresh token hashing         |
+| Fiber Limiter | Rate limiting                 |
+| CORS          | Cross-Origin Resource Sharing |
+| Helmet        | Security headers              |
+| `log/slog`    | Structured logging            |
+| lumberjack    | Log rotation                  |
+| Go testing    | Unit testing                  |
+
+---
+
+## Prasyarat
+
+Pastikan perangkat pengembangan telah memiliki:
+
+* **Go** ≥ 1.27
+* **Git**
+* **PostgreSQL**
+* **Postman** atau `curl`
+* **Visual Studio Code** dengan Go extension
+
+Verifikasi:
 
 ```bash
-cd tugas04
+go version
+git --version
+psql --version
 ```
 
-Kemudian ikuti instruksi yang terdapat pada README modul tersebut.
+---
 
-Contoh menjalankan Modul 4:
+## Clone Repository
 
 ```bash
-cd tugas04
+git clone https://github.com/vxpal3n/go-workspace.git
+cd go-workspace
+```
 
+---
+
+## Menjalankan Modul
+
+Setiap modul memiliki dependency dan konfigurasi masing-masing.
+
+Contoh menjalankan Modul 5:
+
+```bash
+cd tugas05
 go mod tidy
-
 go run .
 ```
 
-Untuk menjalankan unit test:
+Server berjalan pada:
 
-```bash
-go test ./app/service/... -v
+```text
+http://localhost:3000
 ```
 
-Untuk melakukan build dan pemeriksaan kode:
-
-```bash
-go build ./...
-go vet ./...
-```
-
-Konfigurasi dan kebutuhan masing-masing modul dijelaskan secara lengkap pada README modul terkait.
+Untuk konfigurasi database dan environment variable, lihat README pada masing-masing modul.
 
 ---
 
-## Status
+## Dokumentasi
 
-| Modul |  Status | Fokus Utama                           |
-| :---: | :-----: | :------------------------------------ |
-|   01  | Selesai | Fundamental Go                        |
-|   02  | Selesai | REST API & HTTP                       |
-|   03  | Selesai | PostgreSQL & Repository Pattern       |
-|   04  | Selesai | Clean Architecture, Testing & Logging |
+Dokumentasi teknis tersedia pada README masing-masing modul:
+
+* [`tugas01/README.md`](./tugas01/README.md)
+* [`tugas02/README.md`](./tugas02/README.md)
+* [`tugas03/README.md`](./tugas03/README.md)
+* [`tugas04/README.md`](./tugas04/README.md)
+* [`tugas05/README.md`](./tugas05/README.md)
+
+README pada setiap modul berisi penjelasan implementasi, struktur kode, cara menjalankan, serta pengujian yang relevan dengan modul tersebut.
 
 ---
 
-## Catatan
+## Workflow Git
 
-Repository ini merupakan bagian dari proses pembelajaran **Pemrograman Backend Lanjut (SIP375)**.
+Pengerjaan modul menggunakan commit bertahap untuk mendokumentasikan perkembangan implementasi.
 
-Setiap modul didokumentasikan secara terpisah agar implementasi, konsep, dan perkembangan project dapat ditelusuri dengan lebih mudah.
+Konvensi commit yang digunakan:
 
-Pengembangan kode memanfaatkan bantuan AI untuk debugging, eksplorasi konsep, dan penyusunan struktur pada beberapa bagian. Implementasi dan penyesuaian logika dilakukan sesuai kebutuhan masing-masing modul.
+```text
+feat     → fitur baru
+fix      → perbaikan bug
+refactor → restrukturisasi kode
+test     → testing
+docs     → dokumentasi
+chore    → dependency, konfigurasi, tooling
+```
+
+Mulai Modul 5, workflow commit menggunakan pendekatan yang lebih terstruktur sehingga setiap perubahan logis dapat ditelusuri melalui Git history.
 
 ---
 
 ## Repository
 
-Source code lengkap tersedia pada repository:
+GitHub:
 
-**GitHub:**
 https://github.com/vxpal3n/go-workspace
+
+---
+
+## Sumber Bantuan
+
+Dokumentasi dan referensi utama yang digunakan selama pengerjaan:
+
+* Dokumentasi resmi Go.
+* Dokumentasi Fiber v2.
+* Dokumentasi PostgreSQL.
+* Dokumentasi pgx.
+* Dokumentasi JWT.
+* Dokumentasi bcrypt.
+
+Beberapa bagian kode dan dokumentasi dibantu oleh alat bantu AI untuk debugging dan penyusunan struktur, sedangkan implementasi disesuaikan dengan kebutuhan praktikum.

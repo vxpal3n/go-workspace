@@ -1,754 +1,191 @@
-# Modul 4 — Clean Architecture
+# Tugas 05 – Authentication & Security
 
-Implementasi Modul 4 untuk mata kuliah **Pemrograman Backend Lanjut (SIP375)**.
+Implementasi Modul 5 untuk mata kuliah **Pemrograman Backend Lanjut (SIP375)**.
 
-Modul ini merupakan pengembangan dari REST API Students pada Modul 3. Fokus utama bukan menambah fitur HTTP baru, tetapi **merestrukturisasi aplikasi ke dalam pendekatan Clean Architecture** dengan tetap mempertahankan perilaku API yang sudah ada.
+Modul ini merupakan pengembangan dari API Students pada Modul 4. Fokus utama bukan menambah fitur CRUD baru, tetapi **menambahkan sistem authentication dan security** ke dalam aplikasi yang sudah menerapkan Clean Architecture.
 
-Perubahan utama meliputi pemisahan business rules, repository, controller/service, helper, middleware, routing, konfigurasi aplikasi, database, serta penambahan structured logging dan unit testing.
-
----
+Perubahan utama meliputi registrasi akun student, login berbasis NIM dan password, penerapan JWT sebagai access token, mekanisme refresh token dengan rotation, penyimpanan refresh token dalam bentuk hash, middleware `RequireAuth` untuk melindungi endpoint, serta beberapa lapisan pengamanan tambahan seperti bcrypt, rate limiting, CORS terbatas, body limit, dan mitigasi timing attack.
 
 ## Tujuan
 
-Modul ini bertujuan untuk:
+Modul 5 merupakan pengembangan dari API Students pada Modul 4 dengan menambahkan sistem **authentication dan security** menggunakan `Student` sebagai entitas autentikasi.
 
-* Menerapkan prinsip **Clean Architecture** pada REST API yang sudah ada.
-* Menerapkan **Dependency Rule**, yaitu dependensi diarahkan menuju bagian inti aplikasi.
-* Memisahkan business rules dari framework dan infrastruktur.
-* Membuat business rules dapat diuji tanpa menjalankan server atau database.
-* Menambahkan structured logging untuk monitoring request.
-* Mempertahankan perilaku HTTP dari Modul 3 setelah restrukturisasi.
-* Meningkatkan maintainability dan testability aplikasi.
+Implementasi pada modul ini mencakup:
 
----
+* Registrasi akun student.
+* Login menggunakan NIM dan password.
+* Password hashing menggunakan **bcrypt**.
+* Access token menggunakan **JWT**.
+* Refresh token dengan mekanisme **rotation**.
+* Penyimpanan refresh token dalam bentuk hash.
+* Middleware `RequireAuth` untuk melindungi endpoint.
+* Rate limiting pada endpoint login.
+* Pembatasan origin menggunakan CORS.
+* Pembatasan ukuran request body menggunakan `BodyLimit`.
+* Validasi `JWT_SECRET` sebelum server dijalankan.
+* Pencegahan **mass assignment** terhadap field `role`.
+* Mitigasi timing attack pada proses login.
 
-## Fitur Utama
-
-* REST API Students berbasis Fiber v2.
-* PostgreSQL sebagai persistent storage.
-* Repository Pattern.
-* Clean Architecture dengan beberapa penyederhanaan untuk kebutuhan pembelajaran.
-* Business rules terpisah dari Fiber.
-* Unit testing menggunakan package `testing`.
-* Structured logging menggunakan `log/slog`.
-* Log rotation menggunakan `lumberjack`.
-* Request ID untuk setiap HTTP request.
-* Request logging dalam format JSON.
-* CORS dan Helmet middleware.
-* Global error handler.
-* Context timeout untuk operasi database.
-* Graceful shutdown.
-* Validasi `Content-Type: application/json`.
-* Pagination, search, sorting, dan filtering.
-* Error translation dari repository ke HTTP response.
-* Health check dengan pemeriksaan koneksi database.
+Struktur aplikasi tetap mempertahankan pendekatan **Clean Architecture** dari Modul 4.
 
 ---
 
-## Tech Stack
+## Teknologi
 
-| Komponen        | Teknologi                               |
-| --------------- | --------------------------------------- |
-| Language        | Go 1.27.0                               |
-| Framework       | Fiber v2                                |
-| Database        | PostgreSQL 15+                          |
-| Database Driver | pgx/v5                                  |
-| Connection Pool | pgxpool                                 |
-| Environment     | godotenv                                |
-| Logger          | log/slog                                |
-| Log Rotation    | lumberjack                              |
-| Testing         | Go `testing`                            |
-| API Testing     | cURL                                    |
-| Architecture    | Clean Architecture + Repository Pattern |
+| Komponen         | Teknologi                             |
+| :--------------- | :------------------------------------ |
+| Bahasa           | Go                                    |
+| Framework        | Fiber v2                              |
+| Database         | PostgreSQL                            |
+| Database Driver  | pgx/v5 + pgxpool                      |
+| Authentication   | JWT                                   |
+| Password Hashing | bcrypt                                |
+| Refresh Token    | Cryptographically Secure Random Token |
+| Hashing Token    | SHA-256                               |
+| Rate Limiting    | Fiber Limiter                         |
+| CORS             | Fiber CORS                            |
+| Security Headers | Fiber Helmet                          |
+| Logging          | `log/slog` + lumberjack               |
+| Testing          | Go testing                            |
 
 ---
 
-## Struktur Proyek
+## Struktur Folder
 
 ```text
-tugas04/
+tugas05/
 ├── .env.example
 ├── .gitignore
 ├── go.mod
 ├── go.sum
 ├── main.go
-│
+├── README.md
 ├── app/
 │   ├── model/
-│   │   └── student.go
-│   │
+│   │   ├── student.go
+│   │   └── auth.go
 │   ├── repository/
-│   │   └── student_repository.go
-│   │
+│   │   ├── student_repository.go
+│   │   └── token_repository.go
 │   └── service/
+│       ├── student_service.go
 │       ├── student_rules.go
-│       ├── student_rules_test.go
-│       └── student_service.go
-│
+│       ├── auth_service.go
+│       ├── auth_rules.go
+│       └── auth_rules_test.go
+├── helper/
+│   ├── response.go
+│   ├── request.go
+│   ├── security.go
+│   ├── jwt.go
+│   └── context.go
+├── middleware/
+│   ├── middleware.go
+│   └── auth.go
+├── route/
+│   └── route.go
 ├── config/
 │   ├── env.go
 │   ├── logger.go
 │   └── app.go
-│
 ├── database/
 │   └── postgres.go
-│
-├── helper/
-│   ├── response.go
-│   └── request.go
-│
-├── middleware/
-│   └── middleware.go
-│
-├── route/
-│   └── route.go
-│
 ├── migrations/
-│   └── 001_create_students.sql
-│
+│   ├── 001_create_students.sql
+│   └── 002_auth.sql
 └── logs/
     └── app.log
 ```
 
-Folder `logs/` dibuat secara otomatis oleh logger dan tidak di-commit ke repository.
+Folder `logs/` tidak disimpan dalam repository karena telah dimasukkan ke `.gitignore`.
 
 ---
 
-## Arsitektur
+## Konsep Authentication
 
-Implementasi Modul 4 memetakan struktur proyek ke empat kelompok utama Clean Architecture.
+Pada Modul 5, entitas `Student` tidak hanya digunakan sebagai business entity, tetapi juga menjadi **entitas autentikasi**.
 
-### 1. Entities
+Field authentication yang ditambahkan:
 
-Lokasi:
+| Field       | Fungsi                                         |
+| :---------- | :--------------------------------------------- |
+| `email`     | Identitas email student                        |
+| `password`  | Password yang telah di-hash menggunakan bcrypt |
+| `role`      | Role pengguna                                  |
+| `is_active` | Status akun                                    |
+
+Password menggunakan tag JSON `json:"-"` sehingga tidak pernah dikirimkan dalam response API.
+
+Role tidak dapat dikontrol melalui request. Pada proses registrasi, server secara otomatis menetapkan role:
 
 ```text
-app/model/
+user
 ```
 
-Berisi struktur data inti aplikasi, antara lain:
-
-* `Student`
-* `CreateStudentRequest`
-* `ReplaceStudentRequest`
-* `PatchStudentRequest`
-* `WebResponse`
-* `Meta`
-* `ListQuery`
-
-Bagian ini tidak bergantung pada framework HTTP maupun database.
+Hal ini digunakan untuk mencegah **mass assignment**, sehingga client tidak dapat mendaftarkan dirinya sebagai administrator.
 
 ---
 
-### 2. Use Cases / Business Rules
+## Database
 
-Lokasi:
+Migration kedua digunakan untuk menambahkan kebutuhan authentication ke database.
 
-```text
-app/service/student_rules.go
-```
-
-Berisi fungsi-fungsi bisnis murni:
-
-* `ValidateCreate`
-* `ValidateReplace`
-* `ApplyPatch`
-* `IsEmptyPatch`
-* `CountTotalPages`
-
-Fungsi-fungsi tersebut tidak menerima `fiber.Ctx` dan tidak menjalankan query database sehingga dapat diuji secara langsung menggunakan unit test.
-
----
-
-### 3. Interface Adapters
-
-Bagian ini terdiri dari:
+### Migration
 
 ```text
-app/service/
-app/repository/
-helper/
+migrations/
+├── 001_create_students.sql
+└── 002_auth.sql
 ```
 
-#### Service
-
-`student_service.go` bertindak sebagai controller sekaligus use-case coordinator.
-
-Service:
-
-* menerima `fiber.Ctx`;
-* membaca request;
-* menjalankan business rules;
-* memanggil repository;
-* menerjemahkan error;
-* menentukan HTTP response.
-
-#### Repository
-
-`student_repository.go` bertanggung jawab terhadap akses PostgreSQL.
-
-Service tidak perlu mengetahui detail query SQL karena komunikasi dilakukan melalui interface repository.
-
-#### Helper
-
-`helper/` menangani kebutuhan umum HTTP seperti:
-
-* response presenter;
-* parsing query parameter;
-* parsing parameter ID;
-* context timeout.
-
----
-
-### 4. Frameworks & Drivers
-
-Bagian terluar aplikasi terdiri dari:
-
-```text
-config/
-database/
-middleware/
-route/
-main.go
-```
-
-Komponen ini menangani:
-
-* Fiber;
-* PostgreSQL connection pool;
-* environment configuration;
-* middleware;
-* routing;
-* logger;
-* application assembly;
-* graceful shutdown.
-
----
-
-## Dependency Rule
-
-Arah dependensi dirancang agar bagian inti aplikasi tidak bergantung pada framework atau infrastruktur.
-
-Gambaran sederhananya:
-
-```text
-main.go
-├── config
-├── database
-├── app/repository
-└── app/service
-        ├── app/model
-        ├── app/repository
-        └── helper
-              └── app/model
-
-route
-├── app/service
-├── helper
-└── middleware
-```
-
-Prinsip yang dipertahankan:
-
-* `app/model` tidak bergantung pada package proyek lain.
-* `app/service/student_rules.go` tidak bergantung pada Fiber.
-* Repository menangani akses database.
-* Routing tidak menangani business logic.
-* `main.go` bertanggung jawab terhadap perakitan aplikasi.
-* Framework dan infrastruktur berada di bagian luar.
-
----
-
-## Penyederhanaan Clean Architecture
-
-Implementasi ini tidak menggunakan Clean Architecture secara sepenuhnya kanonik karena disesuaikan dengan skala proyek dan kebutuhan pembelajaran.
-
-### Controller dan Use Case
-
-Pada implementasi ini, controller dan use-case coordinator berada dalam:
-
-```text
-app/service/student_service.go
-```
-
-Konsekuensinya, service masih mengenal `fiber.Ctx`.
-
-Namun business rules yang benar-benar membutuhkan pengujian dipisahkan ke:
-
-```text
-app/service/student_rules.go
-```
-
----
-
-### Interface Repository
-
-Interface dan implementasi repository ditempatkan pada package yang sama:
-
-```text
-app/repository/
-```
-
-Dalam implementasi Clean Architecture yang lebih ketat, interface repository biasanya didefinisikan pada layer use case dan implementasinya berada pada adapter.
-
-Pendekatan pada modul ini dipilih untuk menjaga struktur tetap sederhana.
-
----
-
-### Presenter
-
-Presenter juga disederhanakan menjadi:
-
-```text
-helper/response.go
-```
-
-Fungsi seperti `Success`, `SuccessList`, `Created`, `Fail`, dan `FailValidation` digunakan untuk menjaga format response tetap konsisten.
-
----
-
-## Business Rules
-
-### ValidateCreate
-
-Memvalidasi data sebelum student dibuat:
-
-* NIM tidak boleh kosong.
-* Nama tidak boleh kosong.
-* Grade harus berada pada rentang `0–100`.
-
-### ValidateReplace
-
-Memvalidasi request PUT:
-
-* NIM wajib diisi.
-* Nama wajib diisi.
-* Grade harus berada pada rentang `0–100`.
-
-### ApplyPatch
-
-Menerapkan perubahan parsial.
-
-Field hanya diubah apabila field tersebut dikirim dalam request PATCH.
-
-### IsEmptyPatch
-
-Memastikan request PATCH memiliki setidaknya satu field yang ingin diubah.
-
-### CountTotalPages
-
-Menghitung jumlah halaman berdasarkan total data dan nilai limit.
-
----
-
-## Unit Testing
-
-Business rules diuji menggunakan package `testing` bawaan Go.
-
-Test yang tersedia:
-
-```text
-TestCountTotalPages
-TestApplyPatch
-TestValidateCreate
-```
-
-Menjalankan test:
+Migration `002_auth.sql` melakukan beberapa perubahan:
+
+1. Menghapus data student lama karena data tersebut belum memiliki password.
+2. Menambahkan kolom `email`.
+3. Menambahkan kolom `password`.
+4. Menambahkan kolom `role`.
+5. Membuat unique index case-insensitive pada email.
+6. Membuat tabel `refresh_tokens`.
+7. Membuat index untuk `student_id` dan `token_hash`.
+
+Struktur tabel `refresh_tokens`:
+
+| Kolom        | Tipe          | Keterangan                |
+| :----------- | :------------ | :------------------------ |
+| `id`         | `BIGSERIAL`   | Primary key               |
+| `student_id` | `INTEGER`     | Foreign key ke `students` |
+| `token_hash` | `TEXT`        | Hash refresh token        |
+| `expires_at` | `TIMESTAMPTZ` | Waktu kedaluwarsa         |
+| `revoked_at` | `TIMESTAMPTZ` | Waktu token dicabut       |
+| `created_at` | `TIMESTAMPTZ` | Waktu token dibuat        |
+
+Refresh token **tidak disimpan dalam bentuk plaintext**, melainkan hash SHA-256.
+
+### Menjalankan Migration
+
+Pastikan database `db_students` sudah tersedia, kemudian jalankan:
 
 ```bash
-go test ./app/service -v
+psql -U postgres -d db_students -f tugas05/migrations/001_create_students.sql
+psql -U postgres -d db_students -f tugas05/migrations/002_auth.sql
 ```
 
-Contoh hasil:
-
-```text
-=== RUN   TestCountTotalPages
---- PASS: TestCountTotalPages (0.00s)
-
-=== RUN   TestApplyPatch
---- PASS: TestApplyPatch (0.00s)
-
-=== RUN   TestValidateCreate
---- PASS: TestValidateCreate (0.00s)
-
-PASS
-ok      tugas04/app/service       0.002s
-```
-
----
-
-## Structured Logging
-
-Logger menggunakan:
-
-```text
-log/slog
-```
-
-dengan `lumberjack` untuk rotasi file log.
-
-Output diarahkan ke dua tujuan:
-
-```text
-stdout
-logs/app.log
-```
-
-Konfigurasi rotasi:
-
-| Konfigurasi |   Nilai |
-| ----------- | ------: |
-| Max Size    |   10 MB |
-| Max Backups |  5 file |
-| Max Age     | 14 hari |
-| Compression |   Aktif |
-
-Log request menggunakan format JSON dan mencatat informasi seperti:
-
-* request ID;
-* HTTP method;
-* path;
-* status code;
-* duration;
-* IP address.
-
-Contoh:
-
-```json
-{
-  "time": "2026-09-09T10:15:23.123Z",
-  "level": "INFO",
-  "msg": "http_request",
-  "request_id": "abc123",
-  "method": "GET",
-  "path": "/api/v1/students",
-  "status": 200,
-  "duration": 45.678,
-  "ip": "::1"
-}
-```
-
----
-
-## Middleware
-
-Middleware yang digunakan:
-
-```text
-Request ID
-Recover
-Helmet
-CORS
-Request Logger
-Require JSON
-```
-
-### Request ID
-
-Memberikan ID unik pada request sehingga aktivitas request dapat dilacak melalui log.
-
-### Recover
-
-Mencegah panic pada handler menyebabkan server berhenti secara tidak terkontrol.
-
-### Helmet
-
-Menambahkan security-related HTTP headers.
-
-### CORS
-
-Mengatur Cross-Origin Resource Sharing.
-
-### Request Logger
-
-Mencatat informasi setiap HTTP request.
-
-### RequireJSON
-
-Memastikan request yang memiliki body menggunakan:
-
-```text
-Content-Type: application/json
-```
-
-Jika tidak sesuai, API mengembalikan:
-
-```text
-415 Unsupported Media Type
-```
-
----
-
-## API
-
-Base URL:
-
-```text
-http://localhost:3000/api/v1
-```
-
-### Health Check
-
-```http
-GET /health
-```
-
-Response ketika server dan database tersedia:
-
-```json
-{
-  "success": true,
-  "message": "server dan database berjalan"
-}
-```
-
-Jika database tidak dapat dihubungi:
-
-```text
-503 Service Unavailable
-```
-
----
-
-### List Students
-
-```http
-GET /students
-```
-
-Query parameter:
-
-| Parameter   | Default | Keterangan              |
-| ----------- | ------: | ----------------------- |
-| `page`      |       1 | Nomor halaman           |
-| `limit`     |      10 | Jumlah data per halaman |
-| `search`    |       - | Pencarian nama          |
-| `sort`      |      id | Kolom sorting           |
-| `order`     |     asc | `asc` atau `desc`       |
-| `is_active` |       - | Filter status aktif     |
-| `min_grade` |       - | Grade minimum           |
-| `max_grade` |       - | Grade maksimum          |
-
-Kolom sorting yang diperbolehkan:
-
-```text
-id
-nim
-name
-grade
-created_at
-```
-
-Nilai `limit` dibatasi maksimal `100`.
-
-Contoh:
+Verifikasi struktur tabel:
 
 ```bash
-curl "http://localhost:3000/api/v1/students?page=1&limit=10&sort=name&order=asc"
+psql -U postgres -d db_students -c "\d students"
+psql -U postgres -d db_students -c "\d refresh_tokens"
 ```
 
 ---
 
-### Get Student
+## Environment Variables
 
-```http
-GET /students/:id
-```
-
-Contoh:
-
-```bash
-curl http://localhost:3000/api/v1/students/1
-```
-
----
-
-### Create Student
-
-```http
-POST /students
-```
-
-Header:
-
-```text
-Content-Type: application/json
-```
-
-Body:
-
-```json
-{
-  "nim": "S001",
-  "name": "Thaariq",
-  "grade": 85.5
-}
-```
-
-Contoh:
-
-```bash
-curl -X POST http://localhost:3000/api/v1/students -H "Content-Type: application/json" -d '{"nim":"S001","name":"Thaariq","grade":85.5}'
-```
-
-Response sukses:
-
-```text
-201 Created
-```
-
----
-
-### Replace Student
-
-```http
-PUT /students/:id
-```
-
-PUT mengganti seluruh data yang dapat diubah.
-
-Contoh:
-
-```bash
-curl -X PUT http://localhost:3000/api/v1/students/1 -H "Content-Type: application/json" -d '{"nim":"S101","name":"Thoriq","grade":95.0,"is_active":false}'
-```
-
-Response:
-
-```text
-200 OK
-```
-
----
-
-### Patch Student
-
-```http
-PATCH /students/:id
-```
-
-PATCH hanya mengubah field yang dikirim.
-
-Contoh:
-
-```bash
-curl -X PATCH http://localhost:3000/api/v1/students/1 -H "Content-Type: application/json" -d '{"is_active":true}'
-```
-
----
-
-### Delete Student
-
-```http
-DELETE /students/:id
-```
-
-Contoh:
-
-```bash
-curl -X DELETE http://localhost:3000/api/v1/students/2 -i
-```
-
-Response sukses:
-
-```text
-204 No Content
-```
-
----
-
-## HTTP Status Code
-
-| Status | Penggunaan                    |
-| -----: | ----------------------------- |
-|  `200` | Request berhasil              |
-|  `201` | Data berhasil dibuat          |
-|  `204` | Data berhasil dihapus         |
-|  `400` | Request tidak valid           |
-|  `404` | Data/endpoint tidak ditemukan |
-|  `409` | NIM sudah digunakan           |
-|  `415` | Content-Type tidak sesuai     |
-|  `422` | Validasi business rules gagal |
-|  `503` | Database tidak tersedia       |
-|  `500` | Internal server error         |
-
----
-
-## Error Translation
-
-Repository menggunakan sentinel error:
-
-```go
-ErrNotFound
-ErrDuplicate
-```
-
-Error PostgreSQL kemudian diterjemahkan menjadi error aplikasi dan akhirnya menjadi HTTP response.
-
-Contoh:
-
-```text
-pgx.ErrNoRows
-      ↓
-repository.ErrNotFound
-      ↓
-HTTP 404
-```
-
-Untuk NIM duplikat:
-
-```text
-PostgreSQL 23505
-      ↓
-repository.ErrDuplicate
-      ↓
-HTTP 409
-```
-
-Dengan pendekatan ini, detail database tidak perlu diketahui oleh layer HTTP.
-
----
-
-## Graceful Shutdown
-
-Aplikasi menangani:
-
-```text
-SIGINT
-SIGTERM
-```
-
-Ketika menerima signal shutdown:
-
-1. Server berhenti menerima request baru.
-2. Aplikasi menjalankan proses shutdown.
-3. Context shutdown memiliki timeout 10 detik.
-4. Server ditutup secara terkontrol.
-5. Connection pool database ditutup.
-
-Pendekatan ini mencegah aplikasi berhenti secara tiba-tiba ketika masih terdapat request yang sedang diproses.
-
----
-
-## Environment Configuration
-
-Buat file:
-
-```text
-.env
-```
-
-berdasarkan:
-
-```text
-.env.example
-```
-
-Contoh konfigurasi:
+Buat file `.env` di dalam folder `tugas05/`.
 
 ```env
 APP_PORT=3000
-APP_NAME=API Students - Modul 4 (Clean Architecture)
+APP_NAME=Praktikum Backend Lanjut - Tugas05
 
 DB_HOST=localhost
 DB_PORT=5432
@@ -758,56 +195,475 @@ DB_NAME=db_students
 DB_SSLMODE=disable
 DB_MAX_CONNS=10
 
+JWT_SECRET=
+JWT_ISSUER=praktikum-backend
+JWT_ACCESS_TTL_MINUTES=15
+JWT_REFRESH_TTL_DAYS=7
+
+ALLOWED_ORIGINS=http://localhost:5173
+
 LOG_LEVEL=info
 ```
 
-File `.env` tidak boleh di-commit.
+Contoh konfigurasi tersedia pada:
 
----
+```text
+tugas05/.env.example
+```
 
-## `.gitignore`
+`JWT_SECRET` wajib memiliki panjang minimal **32 karakter**.
 
-Konfigurasi utama:
+Generate secret menggunakan:
 
-```gitignore
+```bash
+openssl rand -hex 32
+```
+
+File `.env` tidak boleh dimasukkan ke repository.
+
+Verifikasi:
+
+```bash
+cd tugas05
+git check-ignore .env
+```
+
+Jika menghasilkan:
+
+```text
 .env
-logs/
-*.log
 ```
 
-Dengan demikian credential database dan file log lokal tidak masuk ke repository.
+berarti file telah berhasil di-ignore.
 
 ---
 
-## Menjalankan Project
+## Security Implementation
 
-### 1. Masuk ke folder
+### 1. Password Hashing
 
-```bash
-cd tugas04
+Password tidak disimpan secara langsung ke database.
+
+Proses registrasi:
+
+```text
+Plain Password
+      |
+      v
+   bcrypt
+      |
+      v
+Password Hash
+      |
+      v
+ PostgreSQL
 ```
 
-### 2. Siapkan environment
+Implementasi menggunakan bcrypt dengan cost `12`.
 
-```bash
-cp .env.example .env
+---
+
+### 2. JWT Access Token
+
+Access token digunakan untuk mengakses endpoint yang membutuhkan autentikasi.
+
+Payload token membawa informasi minimal:
+
+```json
+{
+  "student_id": 1,
+  "nim": "S001",
+  "role": "user"
+}
 ```
 
-Sesuaikan konfigurasi PostgreSQL pada `.env`.
+Token menggunakan:
 
-### 3. Install dependency
+```text
+Algorithm : HS256
+Issuer    : praktikum-backend
+Expiration: 15 menit
+```
+
+Middleware akan menolak token yang:
+
+* Tidak valid.
+* Telah dimodifikasi.
+* Kedaluwarsa.
+* Menggunakan algoritma yang tidak diharapkan.
+* Tidak memiliki expiration claim.
+
+Implementasi juga melakukan pemeriksaan terhadap algoritma JWT untuk mencegah **algorithm confusion**.
+
+---
+
+### 3. Refresh Token
+
+Refresh token dibuat menggunakan random bytes yang aman secara kriptografis.
+
+Alurnya:
+
+```text
+Login
+  |
+  +---- Access Token
+  |
+  +---- Refresh Token
+             |
+             v
+        SHA-256 Hash
+             |
+             v
+       PostgreSQL
+```
+
+Refresh token memiliki masa berlaku default:
+
+```text
+7 hari
+```
+
+Refresh token lama akan dicabut ketika digunakan untuk mendapatkan token baru.
+
+Dengan demikian, mekanisme yang digunakan adalah **refresh token rotation**.
+
+---
+
+### 4. Timing Attack Mitigation
+
+Jika NIM tidak ditemukan, aplikasi tetap menjalankan operasi bcrypt menggunakan dummy hash.
+
+Tujuannya agar perbedaan waktu response antara:
+
+```text
+NIM tidak ditemukan
+```
+
+dan:
+
+```text
+NIM ditemukan tetapi password salah
+```
+
+tidak terlalu mudah digunakan untuk mengetahui apakah sebuah NIM terdaftar.
+
+Pesan error untuk kedua kondisi juga dibuat sama:
+
+```text
+NIM atau password salah
+```
+
+---
+
+### 5. Rate Limiting
+
+Endpoint login memiliki batas:
+
+```text
+5 request / 1 menit / IP
+```
+
+Jika batas terlampaui, API memberikan:
+
+```text
+429 Too Many Requests
+```
+
+serta header:
+
+```text
+Retry-After: 60
+```
+
+Rate limiter digunakan untuk mengurangi risiko brute-force login.
+
+---
+
+### 6. CORS
+
+CORS tidak lagi menggunakan konfigurasi terbuka.
+
+Origin dikontrol melalui:
+
+```env
+ALLOWED_ORIGINS=http://localhost:5173
+```
+
+Method yang diizinkan:
+
+```text
+GET
+POST
+PUT
+PATCH
+DELETE
+OPTIONS
+```
+
+Header `Authorization` juga secara eksplisit diizinkan untuk kebutuhan Bearer Token.
+
+---
+
+### 7. Body Limit
+
+Ukuran request body dibatasi hingga:
+
+```text
+1 MB
+```
+
+Konfigurasi ini digunakan untuk mengurangi risiko penggunaan resource secara berlebihan melalui payload berukuran besar.
+
+---
+
+## API Contract
+
+Base URL:
+
+```text
+http://localhost:3000/api/v1
+```
+
+### Health Check
+
+| Method | Endpoint  | Auth | Fungsi                               |
+| :----- | :-------- | :--: | :----------------------------------- |
+| `GET`  | `/health` |  No  | Mengecek server dan koneksi database |
+
+Response sukses:
+
+```json
+{
+  "success": true,
+  "message": "server dan database berjalan"
+}
+```
+
+---
+
+## Authentication Endpoints
+
+| Method | Endpoint         | Auth | Fungsi                                      |
+| :----- | :--------------- | :--: | :------------------------------------------ |
+| `POST` | `/auth/register` |  No  | Membuat akun student                        |
+| `POST` | `/auth/login`    |  No  | Login dan mendapatkan token                 |
+| `POST` | `/auth/refresh`  |  No  | Memperbarui access token                    |
+| `POST` | `/auth/logout`   |  No  | Mencabut refresh token                      |
+| `GET`  | `/auth/me`       |  Yes | Mengambil profil pengguna yang sedang login |
+
+Endpoint authentication didaftarkan pada route `/api/v1/auth`.
+
+---
+
+## Student Endpoints
+
+Mulai Modul 5, seluruh endpoint student membutuhkan access token.
+
+| Method   | Endpoint        | Auth | Fungsi                         |
+| :------- | :-------------- | :--: | :----------------------------- |
+| `GET`    | `/students`     |  Yes | Daftar student                 |
+| `GET`    | `/students/:id` |  Yes | Detail student                 |
+| `PUT`    | `/students/:id` |  Yes | Mengganti data student         |
+| `PATCH`  | `/students/:id` |  Yes | Mengubah sebagian data student |
+| `DELETE` | `/students/:id` |  Yes | Menghapus student              |
+
+Endpoint:
+
+```text
+POST /students
+```
+
+dihapus.
+
+Pembuatan student sekarang dilakukan melalui:
+
+```text
+POST /auth/register
+```
+
+Hal ini mencegah adanya dua jalur pembuatan akun dengan aturan authentication yang berbeda.
+
+---
+
+## Contoh Request
+
+### Register
+
+```bash
+curl -i -X POST http://localhost:3000/api/v1/auth/register -H "Content-Type: application/json" -d '{"nim":"S001","name":"Thaariq","email":"thaariq@example.com","grade":85.5,"password":"rahasia123"}'
+```
+
+Response yang diharapkan:
+
+```text
+201 Created
+```
+
+---
+
+### Login
+
+```bash
+curl -X POST http://localhost:3000/api/v1/auth/login -H "Content-Type: application/json" -d '{"nim":"S001","password":"rahasia123"}'
+```
+
+Response akan berisi:
+
+```json
+{
+  "success": true,
+  "message": "login berhasil",
+  "data": {
+    "access_token": "...",
+    "refresh_token": "...",
+    "token_type": "Bearer",
+    "expires_in": 900
+  }
+}
+```
+
+---
+
+### Mengakses Profil
+
+Gunakan access token dari hasil login:
+
+```bash
+curl -i http://localhost:3000/api/v1/auth/me -H "Authorization: Bearer ACCESS_TOKEN"
+```
+
+---
+
+### Mengakses Student
+
+```bash
+curl http://localhost:3000/api/v1/students -H "Authorization: Bearer ACCESS_TOKEN"
+```
+
+---
+
+### Refresh Token
+
+```bash
+curl -X POST http://localhost:3000/api/v1/auth/refresh -H "Content-Type: application/json" -d '{"refresh_token":"REFRESH_TOKEN"}'
+```
+
+Refresh token yang sama tidak dapat digunakan kembali setelah berhasil di-rotate.
+
+---
+
+### Logout
+
+```bash
+curl -X POST http://localhost:3000/api/v1/auth/logout -H "Content-Type: application/json" -d '{"refresh_token":"REFRESH_TOKEN"}'
+```
+
+---
+
+## Validasi Authentication
+
+Password pada proses registrasi harus:
+
+* Minimal 8 karakter.
+* Mengandung huruf.
+* Mengandung angka.
+* Tidak menggunakan password umum tertentu.
+
+Contoh password yang ditolak:
+
+```text
+abc1
+rahasiaku
+12345678
+password1
+```
+
+Business rules authentication dibuat sebagai fungsi terpisah sehingga dapat diuji tanpa menjalankan Fiber maupun database.
+
+---
+
+## Testing
+
+Unit test untuk authentication rules dapat dijalankan dengan:
+
+```bash
+cd tugas05
+go test ./app/service -v -run TestValidate
+```
+
+Validasi yang diuji meliputi:
+
+* Register berhasil.
+* Password terlalu pendek.
+* Password tanpa angka.
+* Password tanpa huruf.
+* Password terlalu umum.
+* Format email tidak valid.
+* Grade berada di luar rentang 0–100.
+
+Untuk memastikan seluruh project dapat dikompilasi dan lolos static analysis:
+
+```bash
+go build ./...
+go vet ./...
+```
+
+---
+
+## Skenario Verifikasi
+
+Implementasi Modul 5 diuji menggunakan beberapa skenario utama:
+
+| No. | Skenario                        | Expected Result                           |
+| :-: | :------------------------------ | :---------------------------------------- |
+|  1  | Register dengan data valid      | `201 Created`                             |
+|  2  | Register dengan password lemah  | `422 Unprocessable Entity`                |
+|  3  | Memeriksa password di database  | Password tersimpan sebagai bcrypt hash    |
+|  4  | Akses `/students` tanpa token   | `401 Unauthorized`                        |
+|  5  | Login dengan password salah     | `401 Unauthorized`                        |
+|  6  | Login dengan NIM tidak ada      | `401 Unauthorized` dengan pesan yang sama |
+|  7  | Login dengan credential benar   | `200 OK` + access/refresh token           |
+|  8  | Access token valid              | Request berhasil                          |
+|  9  | Access token dimodifikasi       | `401 Unauthorized`                        |
+|  10 | Refresh token digunakan kembali | `401 Unauthorized`                        |
+|  11 | Percobaan login berlebihan      | `429 Too Many Requests`                   |
+|  12 | Register dengan `role: admin`   | Role tetap `user`                         |
+
+Skenario tersebut mencakup authentication, authorization middleware, token security, refresh token rotation, rate limiting, dan mass assignment protection.
+
+---
+
+## Menjalankan Aplikasi
+
+### 1. Masuk ke folder project
+
+```bash
+cd tugas05
+```
+
+### 2. Install dependency
 
 ```bash
 go mod tidy
 ```
 
-### 4. Jalankan unit test
+### 3. Konfigurasi environment
 
-```bash
-go test ./app/service/... -v
+Buat `.env` berdasarkan `.env.example` dan isi:
+
+```env
+DB_PASSWORD=PASSWORD_POSTGRES
+JWT_SECRET=JWT_SECRET_MINIMAL_32_KARAKTER
 ```
 
-### 5. Jalankan aplikasi
+### 4. Jalankan migration
+
+```bash
+psql -U postgres -d db_students -f migrations/001_create_students.sql
+psql -U postgres -d db_students -f migrations/002_auth.sql
+```
+
+### 5. Jalankan server
 
 ```bash
 go run .
@@ -821,192 +677,53 @@ http://localhost:3000
 
 ---
 
-## Build dan Static Check
+## Konvensi Commit
 
-Menjalankan build:
+Pengerjaan Modul 5 menggunakan pendekatan **Conventional Commits** untuk mendokumentasikan progres implementasi secara bertahap.
 
-```bash
-go build ./...
-```
+Kategori yang digunakan:
 
-Menjalankan static analysis:
-
-```bash
-go vet ./...
-```
-
-Keduanya digunakan untuk memastikan seluruh package dapat dikompilasi dan tidak ditemukan masalah yang terdeteksi oleh `go vet`.
-
----
-
-## Pemeriksaan Layer Leakage
-
-Beberapa pemeriksaan dapat dilakukan untuk memastikan dependency rule tetap terjaga.
-
-### Repository tidak mengimpor Fiber
-
-```bash
-go list -deps ./app/repository | grep fiber
-```
-
-Output yang diharapkan:
-
-```text
-(kosong)
-```
-
-### Service tidak mengandung SQL langsung
-
-```bash
-grep -r "SELECT\|INSERT\|UPDATE\|DELETE" app/service/*.go
-```
-
-Output yang diharapkan:
-
-```text
-(tidak ditemukan)
-```
-
-### Route tidak mengandung business rules
-
-```bash
-grep -E "if.*==\"\"|Validate|ApplyPatch" route/route.go
-```
-
-Output yang diharapkan:
-
-```text
-(tidak ditemukan)
-```
-
-### Main tidak mengandung handler HTTP
-
-```bash
-grep -E "func.*fiber.Ctx|c.JSON" main.go
-```
-
-Output yang diharapkan:
-
-```text
-(tidak ditemukan)
-```
-
----
-
-## Pengujian Perilaku API
-
-Restrukturisasi Modul 4 ditujukan untuk mengubah struktur internal tanpa mengubah kontrak API.
-
-Data pengujian:
-
-| NIM  | Nama    | Grade |
-| ---- | ------- | ----: |
-| S001 | Thaariq |  85.5 |
-| S002 | Valen   |  92.0 |
-| S003 | Rizki   |  78.0 |
-
-Pengujian meliputi:
-
-* POST data student.
-* GET seluruh student.
-* Pagination.
-* Sorting.
-* Search.
-* GET berdasarkan ID.
-* Duplicate NIM.
-* PUT.
-* PATCH.
-* DELETE.
-* Invalid Content-Type.
-* ID tidak ditemukan.
-* Health check.
-* Database offline.
-
-Dengan pengujian tersebut, perilaku HTTP dari Modul 3 dapat dibandingkan dengan implementasi Modul 4.
-
----
-
-## Perbandingan Modul 3 dan Modul 4
-
-| Aspek              | Modul 3           | Modul 4                    |
-| ------------------ | ----------------- | -------------------------- |
-| Storage            | PostgreSQL        | PostgreSQL                 |
-| Repository Pattern | Ya                | Ya                         |
-| Fiber              | Ya                | Ya                         |
-| Business Rules     | Service/handler   | Dipisahkan                 |
-| Architecture       | Layered sederhana | Clean Architecture         |
-| Unit Test          | Belum fokus       | Business rules             |
-| Logger             | Basic             | Structured logging         |
-| Request ID         | Belum             | Ya                         |
-| Graceful Shutdown  | Belum fokus       | Ya                         |
-| Error Handler      | Service-level     | Global + service           |
-| Helper             | Terbatas          | Presenter + request parser |
-| Dependency Check   | Belum fokus       | Ya                         |
-
-Perubahan utama Modul 4 berada pada **struktur internal dan pemisahan tanggung jawab**, bukan pada penambahan endpoint baru.
-
----
-
-## Kelebihan
-
-* Struktur kode lebih terorganisir.
-* Business rules dapat diuji secara terisolasi.
-* Dependency antar-layer lebih jelas.
-* Repository menyembunyikan detail database.
-* Logging lebih mudah dianalisis.
-* Error handling lebih konsisten.
-* Lebih siap dikembangkan untuk proyek yang lebih besar.
-
----
-
-## Trade-off
-
-Clean Architecture menambah jumlah package dan file.
-
-Untuk proyek kecil, konsekuensinya adalah:
-
-* navigasi kode menjadi lebih panjang;
-* satu request dapat melewati beberapa layer;
-* boilerplate meningkat;
-* struktur terasa lebih kompleks dibanding Modul 3.
-
-Untuk proyek dengan banyak endpoint, developer, atau sumber data, pemisahan tersebut menjadi lebih bermanfaat.
-
----
-
-## Learning Outcomes
-
-Setelah menyelesaikan Modul 4, konsep yang dipelajari meliputi:
-
-1. Clean Architecture.
-2. Dependency Rule.
-3. Separation of Concerns.
-4. Business Rules.
-5. Repository Pattern.
-6. Dependency Inversion melalui interface.
-7. Unit Testing.
-8. Structured Logging.
-9. Log Rotation.
-10. Middleware composition.
-11. Graceful Shutdown.
-12. Error Translation.
-13. Layer Leakage Analysis.
-14. Maintainable backend structure.
-
----
-
-## Repository
-
-Source code:
-
-```text
-https://github.com/vxpal3n/go-workspace/tree/main/tugas04
-```
+| Prefix     | Penggunaan                              |
+| :--------- | :-------------------------------------- |
+| `feat`     | Fitur baru                              |
+| `fix`      | Perbaikan bug                           |
+| `refactor` | Restrukturisasi tanpa mengubah perilaku |
+| `test`     | Pengujian                               |
+| `docs`     | Dokumentasi                             |
+| `chore`    | Dependency, konfigurasi, dan tooling    |
 
 ---
 
 ## Catatan
 
-Implementasi ini merupakan proyek pembelajaran untuk mata kuliah **Pemrograman Backend Lanjut (SIP375)**.
+* `JWT_SECRET` wajib memiliki minimal 32 karakter.
+* File `.env` tidak boleh di-commit.
+* Password tidak pernah dikembalikan dalam response JSON.
+* Refresh token disimpan dalam database sebagai hash.
+* Role ditentukan oleh server pada saat registrasi.
+* Endpoint `/students` membutuhkan access token.
+* Endpoint `POST /students` tidak tersedia pada Modul 5.
+* Refresh token menggunakan mekanisme rotation.
+* Login memiliki rate limiter berdasarkan IP.
+* Request body dibatasi hingga 1 MB.
+* CORS menggunakan daftar origin yang dikonfigurasi melalui environment variable.
 
-Struktur Clean Architecture pada modul ini merupakan versi yang disederhanakan dari implementasi kanonik agar sesuai dengan skala proyek dan tujuan pembelajaran.
+---
+
+## Repositori
+
+Kode sumber Modul 5:
+
+`https://github.com/vxpal3n/go-workspace/tree/main/tugas05`
+
+---
+
+## Sumber Bantuan
+
+* Dokumentasi Go
+* Dokumentasi Fiber v2
+* Dokumentasi PostgreSQL
+* Dokumentasi JWT
+* Dokumentasi bcrypt
+
+Beberapa bagian implementasi dan dokumentasi dibantu oleh alat bantu AI untuk debugging dan penyusunan struktur, sedangkan logika utama disesuaikan dengan kebutuhan praktikum.

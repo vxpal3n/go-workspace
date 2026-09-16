@@ -13,13 +13,14 @@ import (
 )
 
 var (
-	ErrNotFound = errors.New("data tidak ditemukan")
+	ErrNotFound  = errors.New("data tidak ditemukan")
 	ErrDuplicate = errors.New("data sudah ada")
 )
 
 type StudentRepository interface {
 	FindAll(ctx context.Context, q model.ListQuery) ([]model.Student, int, error)
 	FindByID(ctx context.Context, id int) (model.Student, error)
+	FindByNIM(ctx context.Context, nim string) (model.Student, error)
 	Create(ctx context.Context, s model.Student) (model.Student, error)
 	Update(ctx context.Context, s model.Student) (model.Student, error)
 	Delete(ctx context.Context, id int) error
@@ -72,7 +73,6 @@ func isUniqueViolation(err error) bool {
 	return false
 }
 
-
 func (r *studentPostgresRepository) FindAll(ctx context.Context, q model.ListQuery) ([]model.Student, int, error) {
 	where, args := buildFilter(q)
 
@@ -93,7 +93,7 @@ func (r *studentPostgresRepository) FindAll(ctx context.Context, q model.ListQue
 	}
 
 	sql := fmt.Sprintf(
-		"SELECT id, nim, name, grade, is_active, created_at FROM students%s ORDER BY %s %s LIMIT $%d OFFSET $%d",
+		"SELECT id, nim, name, email, grade, password, role, is_active, created_at FROM students%s ORDER BY %s %s LIMIT $%d OFFSET $%d",
 		where, sortCol, order, len(args)+1, len(args)+2,
 	)
 	args = append(args, q.Limit, q.Offset())
@@ -107,7 +107,7 @@ func (r *studentPostgresRepository) FindAll(ctx context.Context, q model.ListQue
 	students := []model.Student{}
 	for rows.Next() {
 		var s model.Student
-		if err := rows.Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.NIM, &s.Name, &s.Email, &s.Grade, &s.Password, &s.Role, &s.IsActive, &s.CreatedAt); err != nil {
 			return nil, 0, fmt.Errorf("membaca baris student: %w", err)
 		}
 		students = append(students, s)
@@ -121,8 +121,8 @@ func (r *studentPostgresRepository) FindAll(ctx context.Context, q model.ListQue
 func (r *studentPostgresRepository) FindByID(ctx context.Context, id int) (model.Student, error) {
 	var s model.Student
 	err := r.pool.QueryRow(ctx,
-		"SELECT id, nim, name, grade, is_active, created_at FROM students WHERE id = $1", id,
-	).Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt)
+		"SELECT id, nim, name, email, grade, password, role, is_active, created_at FROM students WHERE id = $1", id,
+	).Scan(&s.ID, &s.NIM, &s.Name, &s.Email, &s.Grade, &s.Password, &s.Role, &s.IsActive, &s.CreatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.Student{}, ErrNotFound
@@ -132,10 +132,29 @@ func (r *studentPostgresRepository) FindByID(ctx context.Context, id int) (model
 	return s, nil
 }
 
+func (r *studentPostgresRepository) FindByNIM(ctx context.Context, nim string) (model.Student, error) {
+	var s model.Student
+	err := r.pool.QueryRow(ctx,
+		`SELECT id, nim, name, email, grade, password, role, is_active, created_at
+		 FROM students WHERE LOWER(nim) = LOWER($1)`,
+		nim,
+	).Scan(&s.ID, &s.NIM, &s.Name, &s.Email, &s.Grade,
+		&s.Password, &s.Role, &s.IsActive, &s.CreatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return model.Student{}, ErrNotFound
+		}
+		return model.Student{}, fmt.Errorf("mengambil student berdasarkan NIM: %w", err)
+	}
+	return s, nil
+}
+
 func (r *studentPostgresRepository) Create(ctx context.Context, s model.Student) (model.Student, error) {
 	err := r.pool.QueryRow(ctx,
-		"INSERT INTO students (nim, name, grade, is_active) VALUES ($1, $2, $3, $4) RETURNING id, created_at",
-		s.NIM, s.Name, s.Grade, s.IsActive,
+		`INSERT INTO students (nim, name, email, grade, password, role, is_active)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		 RETURNING id, created_at`,
+		s.NIM, s.Name, s.Email, s.Grade, s.Password, s.Role, s.IsActive,
 	).Scan(&s.ID, &s.CreatedAt)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -148,9 +167,9 @@ func (r *studentPostgresRepository) Create(ctx context.Context, s model.Student)
 
 func (r *studentPostgresRepository) Update(ctx context.Context, s model.Student) (model.Student, error) {
 	err := r.pool.QueryRow(ctx,
-		"UPDATE students SET nim = $1, name = $2, grade = $3, is_active = $4 WHERE id = $5 RETURNING id, nim, name, grade, is_active, created_at",
-		s.NIM, s.Name, s.Grade, s.IsActive, s.ID,
-	).Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt)
+		"UPDATE students SET nim = $1, name = $2, email = $3, grade = $4, password = $5, role = $6, is_active = $7 WHERE id = $8 RETURNING id, nim, name, email, grade, password, role, is_active, created_at",
+		s.NIM, s.Name, s.Email, s.Grade, s.Password, s.Role, s.IsActive, s.ID,
+	).Scan(&s.ID, &s.NIM, &s.Name, &s.Email, &s.Grade, &s.Password, &s.Role, &s.IsActive, &s.CreatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.Student{}, ErrNotFound

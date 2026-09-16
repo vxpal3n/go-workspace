@@ -6,9 +6,9 @@ import (
     "strings"
 
     "github.com/gofiber/fiber/v2"
-    "tugas04/app/model"
-    "tugas04/app/repository"
-    "tugas04/helper"
+    "tugas05/app/model"
+    "tugas05/app/repository"
+    "tugas05/helper"
 )
 
 type StudentService struct {

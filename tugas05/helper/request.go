@@ -7,7 +7,7 @@ import (
     "time"
 
     "github.com/gofiber/fiber/v2"
-    "tugas04/app/model"
+    "tugas05/app/model"
 )
 
 var allowedSort = map[string]bool{

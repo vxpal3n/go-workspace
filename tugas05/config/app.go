@@ -5,10 +5,10 @@ import (
 
     "github.com/gofiber/fiber/v2"
     "github.com/jackc/pgx/v5/pgxpool"
-    "tugas04/app/service"
-    "tugas04/helper"
-    "tugas04/middleware"
-    "tugas04/route"
+    "tugas05/app/service"
+    "tugas05/helper"
+    "tugas05/middleware"
+    "tugas05/route"
 )
 
 func NewApp(logger *slog.Logger, pool *pgxpool.Pool, studentService *service.StudentService) *fiber.App {

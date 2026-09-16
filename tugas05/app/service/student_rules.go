@@ -2,7 +2,7 @@ package service
 
 import (
     "strings"
-    "tugas04/app/model"
+    "tugas05/app/model"
 )
 
 func ValidateCreate(req model.CreateStudentRequest) map[string]string {

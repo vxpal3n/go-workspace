@@ -8,10 +8,10 @@ import (
     "syscall"
     "time"
 
-    "tugas04/app/repository"
-    "tugas04/app/service"
-    "tugas04/config"
-    "tugas04/database"
+    "tugas05/app/repository"
+    "tugas05/app/service"
+    "tugas05/config"
+    "tugas05/database"
 )
 
 func main() {

@@ -2,7 +2,7 @@ package service
 
 import (
     "testing"
-    "tugas04/app/model"
+    "tugas05/app/model"
 )
 
 func TestCountTotalPages(t *testing.T) {

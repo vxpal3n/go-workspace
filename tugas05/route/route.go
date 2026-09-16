@@ -6,9 +6,9 @@ import (
 
     "github.com/gofiber/fiber/v2"
     "github.com/jackc/pgx/v5/pgxpool"
-    "tugas04/app/service"
-    "tugas04/helper"
-    "tugas04/middleware"
+    "tugas05/app/service"
+    "tugas05/helper"
+    "tugas05/middleware"
 )
 
 func Register(app *fiber.App, pool *pgxpool.Pool, studentService *service.StudentService) {

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"tugas04/config"
+	"tugas05/config"
 )
 
 func NewPool(ctx context.Context) (*pgxpool.Pool, error) {

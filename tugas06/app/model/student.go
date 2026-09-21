@@ -10,6 +10,7 @@ type Student struct {
 	Grade     float64   `json:"grade"`
 	Password  string    `json:"-"`
 	Role      string    `json:"role"`
+	OwnerID   *int      `json:"owner_id,omitempty"`
 	IsActive  bool      `json:"is_active"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -36,6 +37,10 @@ type PatchStudentRequest struct {
 	Email    *string  `json:"email,omitempty"`
 	Grade    *float64 `json:"grade,omitempty"`
 	IsActive *bool    `json:"is_active,omitempty"`
+}
+
+type AssignRoleRequest struct {
+	Role string `json:"role"`
 }
 
 type WebResponse struct {

@@ -20,6 +20,7 @@ type AuthService struct {
 	students   repository.StudentRepository
 	tokens     repository.TokenRepository
 	jwt        *helper.JWTManager
+	perms      *helper.PermissionSet
 	refreshTTL time.Duration
 }
 
@@ -27,11 +28,15 @@ func NewAuthService(
 	students repository.StudentRepository,
 	tokens repository.TokenRepository,
 	jwtManager *helper.JWTManager,
+	perms *helper.PermissionSet,
 	refreshTTL time.Duration,
 ) *AuthService {
 	return &AuthService{
-		students: students, tokens: tokens,
-		jwt: jwtManager, refreshTTL: refreshTTL,
+		students:   students,
+		tokens:     tokens,
+		jwt:        jwtManager,
+		perms:      perms,
+		refreshTTL: refreshTTL,
 	}
 }
 
@@ -165,7 +170,10 @@ func (s *AuthService) Me(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.Fail(c, fiber.StatusUnauthorized, "student tidak ditemukan")
 	}
-	return helper.Success(c, fiber.StatusOK, "profil berhasil diambil", student)
+	return helper.Success(c, fiber.StatusOK, "profil berhasil diambil", fiber.Map{
+		"user":        student,
+		"permissions": s.perms.PermissionsOf(student.Role),
+	})
 }
 
 func (s *AuthService) issueTokenPair(ctx context.Context, student model.Student) (model.TokenPair, error) {

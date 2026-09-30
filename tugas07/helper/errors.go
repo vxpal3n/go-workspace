@@ -58,6 +58,18 @@ func Conflict(message string) *AppError {
 	return &AppError{Status: fiber.StatusConflict, Code: CodeConflict, Message: message}
 }
 
+func UnsupportedMediaType(message string) *AppError {
+	return &AppError{Status: fiber.StatusUnsupportedMediaType, Code: CodeUnsupportedMedia, Message: message}
+}
+
+func TooManyRequests(message string) *AppError {
+	return &AppError{Status: fiber.StatusTooManyRequests, Code: CodeTooManyRequests, Message: message}
+}
+
+func ServiceUnavailable(message string) *AppError {
+	return &AppError{Status: fiber.StatusServiceUnavailable, Code: "SERVICE_UNAVAILABLE", Message: message}
+}
+
 func Validation(fields map[string]string) *AppError {
 	return &AppError{
 		Status:  fiber.StatusBadRequest,

@@ -32,10 +32,10 @@ type ReplaceStudentRequest struct {
 }
 
 type PatchStudentRequest struct {
-	NIM      *string  `json:"nim,omitempty"`
-	Name     *string  `json:"name,omitempty"`
-	Email    *string  `json:"email,omitempty"`
-	Grade    *float64 `json:"grade,omitempty"`
+	NIM      *string  `json:"nim,omitempty"      validate:"omitnil,min=3,max=20,alphanum"`
+	Name     *string  `json:"name,omitempty"     validate:"omitnil,min=2,max=100"`
+	Email    *string  `json:"email,omitempty"    validate:"omitnil,email,max=120"`
+	Grade    *float64 `json:"grade,omitempty"    validate:"omitnil,min=0,max=100"`
 	IsActive *bool    `json:"is_active,omitempty"`
 }
 

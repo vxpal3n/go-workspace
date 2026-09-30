@@ -2,9 +2,9 @@ package service
 
 import (
 	"strings"
-	"unicode"
 
 	"tugas07/app/model"
+	"tugas07/helper"
 )
 
 const minPasswordLength = 8
@@ -32,7 +32,7 @@ func ValidateRegister(req model.RegisterRequest) map[string]string {
 		errs["grade"] = "harus antara 0 dan 100"
 	}
 
-	if msg := checkPasswordStrength(req.Password); msg != "" {
+	if msg := helper.CheckPasswordStrength(req.Password); msg != "" {
 		errs["password"] = msg
 	}
 	return errs
@@ -47,32 +47,6 @@ func ValidateLogin(req model.LoginRequest) map[string]string {
 		errs["password"] = "wajib diisi"
 	}
 	return errs
-}
-
-func checkPasswordStrength(password string) string {
-	if len(password) < minPasswordLength {
-		return "minimal 8 karakter"
-	}
-	var hasLetter, hasDigit bool
-	for _, r := range password {
-		switch {
-		case unicode.IsLetter(r):
-			hasLetter = true
-		case unicode.IsDigit(r):
-			hasDigit = true
-		}
-	}
-	if !hasLetter || !hasDigit {
-		return "harus memuat huruf dan angka"
-	}
-	weak := map[string]bool{
-		"password1": true, "12345678": true, "qwerty123": true,
-		"admin123": true, "password123": true,
-	}
-	if weak[strings.ToLower(password)] {
-		return "password terlalu umum"
-	}
-	return ""
 }
 
 func isValidEmail(email string) bool {

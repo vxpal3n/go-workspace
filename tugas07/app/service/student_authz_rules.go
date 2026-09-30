@@ -63,7 +63,7 @@ func ValidateCreateByAdmin(req model.CreateStudentRequest) map[string]string {
 	if req.Grade < 0 || req.Grade > 100 {
 		errs["grade"] = "harus antara 0 dan 100"
 	}
-	if msg := checkPasswordStrength(req.Password); msg != "" {
+	if msg := helper.CheckPasswordStrength(req.Password); msg != "" {
 		errs["password"] = msg
 	}
 	return errs

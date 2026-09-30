@@ -52,23 +52,23 @@ func newErrorHandler(logger *slog.Logger) fiber.ErrorHandler {
 			}
 		}
 
-        if appErr.Status < fiber.StatusInternalServerError {
-            errDetail := ""
-            if cause := appErr.Cause(); cause != nil {
-                errDetail = cause.Error()
-            }
-            logger.Error("request_failed",
-                slog.String("request_id", requestID),
-                slog.String("path", c.Path()),
-                slog.String("code", appErr.Code),
-                slog.Int("status", appErr.Status),
-                slog.String("error", errDetail))
-		} else {
+		if appErr.Status < fiber.StatusInternalServerError {
 			logger.Warn("request_rejected",
 				slog.String("request_id", requestID),
 				slog.String("path", c.Path()),
 				slog.String("code", appErr.Code),
 				slog.Int("status", appErr.Status))
+		} else {
+			errDetail := ""
+			if cause := appErr.Cause(); cause != nil {
+				errDetail = cause.Error()
+			}
+			logger.Error("request_failed",
+				slog.String("request_id", requestID),
+				slog.String("path", c.Path()),
+				slog.String("code", appErr.Code),
+				slog.Int("status", appErr.Status),
+				slog.String("error", errDetail))
 		}
 
 		return c.Status(appErr.Status).JSON(model.ErrorResponse{

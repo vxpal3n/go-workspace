@@ -60,6 +60,8 @@ func WriteStudentsCSV(c *fiber.Ctx, students []model.Student) error {
 		}
 	}
 
+	writer.Flush()
+
 	if err := writer.Error(); err != nil {
 		return Internal(err)
 	}

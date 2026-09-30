@@ -37,7 +37,7 @@ func newValidator() *validator.Validate {
 	})
 
 	_ = v.RegisterValidation("strongpassword", func(fl validator.FieldLevel) bool {
-		return CheckPasswordStrength(fl.Field().String()) != ""
+		return CheckPasswordStrength(fl.Field().String()) == ""
 	})
 
 	return v

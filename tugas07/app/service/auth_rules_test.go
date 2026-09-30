@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"tugas07/app/model"
+	"tugas07/helper"
 )
 
 func TestValidateRegister_Success(t *testing.T) {
@@ -14,7 +15,7 @@ func TestValidateRegister_Success(t *testing.T) {
 		Grade:    85.5,
 		Password: "rahasia123",
 	}
-	errs := ValidateRegister(req)
+	errs := helper.ValidateStruct(req)
 	if len(errs) != 0 {
 		t.Errorf("seharusnya lolos, tapi dapat error: %v", errs)
 	}
@@ -39,7 +40,7 @@ func TestValidateRegister_WeakPassword(t *testing.T) {
 				Grade:    85.5,
 				Password: tc.password,
 			}
-			errs := ValidateRegister(req)
+			errs := helper.ValidateStruct(req)
 			if _, ok := errs["password"]; !ok {
 				t.Errorf("harap error pada field password, dapat: %v", errs)
 			}
@@ -55,7 +56,7 @@ func TestValidateRegister_InvalidEmail(t *testing.T) {
 		Grade:    85.5,
 		Password: "rahasia123",
 	}
-	errs := ValidateRegister(req)
+	errs := helper.ValidateStruct(req)
 	if _, ok := errs["email"]; !ok {
 		t.Errorf("harap error pada field email, dapat: %v", errs)
 	}
@@ -69,7 +70,7 @@ func TestValidateRegister_GradeOutOfRange(t *testing.T) {
 		Grade:    150,
 		Password: "rahasia123",
 	}
-	errs := ValidateRegister(req)
+	errs := helper.ValidateStruct(req)
 	if _, ok := errs["grade"]; !ok {
 		t.Errorf("harap error pada field grade, dapat: %v", errs)
 	}

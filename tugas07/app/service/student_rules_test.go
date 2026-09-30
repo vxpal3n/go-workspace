@@ -2,7 +2,9 @@ package service
 
 import (
     "testing"
+
     "tugas07/app/model"
+    "tugas07/helper"
 )
 
 func TestCountTotalPages(t *testing.T) {
@@ -34,27 +36,33 @@ func TestApplyPatch(t *testing.T) {
 
     newActive := false
     req := model.PatchStudentRequest{IsActive: &newActive}
-    result, errs := ApplyPatch(initial, req)
-    if len(errs) != 0 {
-        t.Fatalf("tidak seharusnya ada error: %v", errs)
-    }
+    result := ApplyPatch(initial, req)
+
     if result.IsActive != false {
         t.Error("is_active seharusnya berubah menjadi false")
     }
     if result.Name != "Thaariq" {
         t.Error("field yang tidak dikirim seharusnya tidak berubah")
     }
+    if result.NIM != "S001" {
+        t.Error("NIM seharusnya tidak berubah")
+    }
+    if result.Grade != 85.5 {
+        t.Error("Grade seharusnya tidak berubah")
+    }
 }
 
 func TestValidateCreate(t *testing.T) {
     req := model.CreateStudentRequest{
-        NIM:   "S001",
-        Name:  "Valen",
-        Grade: 105,
+        NIM:      "S001",
+        Name:     "Valen",
+        Email:    "valen@example.com",
+        Grade:    105,
+        Password: "Str0ng!Pass",
     }
-    errs := ValidateCreate(req)
+    errs := helper.ValidateStruct(req)
     if len(errs) != 1 {
-        t.Errorf("seharusnya 1 error, dapat %d", len(errs))
+        t.Errorf("seharusnya 1 error, dapat %d: %v", len(errs), errs)
     }
     if _, ok := errs["grade"]; !ok {
         t.Error("seharusnya error pada grade")

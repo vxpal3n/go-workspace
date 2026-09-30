@@ -91,7 +91,7 @@ func (s *StudentService) Create(c *fiber.Ctx) error {
 	req.Name = strings.TrimSpace(req.Name)
 	req.Email = strings.TrimSpace(req.Email)
 
-	if errs := ValidateCreateByAdmin(req); len(errs) > 0 {
+	if errs := helper.ValidateStruct(req); errs != nil {
 		return helper.Validation(errs)
 	}
 
@@ -139,20 +139,7 @@ func (s *StudentService) Replace(c *fiber.Ctx) error {
 	req.Name = strings.TrimSpace(req.Name)
 	req.Email = strings.TrimSpace(req.Email)
 
-	errs := map[string]string{}
-	if req.NIM == "" {
-		errs["nim"] = "wajib diisi pada PUT"
-	}
-	if req.Name == "" {
-		errs["name"] = "wajib diisi pada PUT"
-	}
-	if !isValidEmail(req.Email) {
-		errs["email"] = "format email tidak valid"
-	}
-	if req.Grade < 0 || req.Grade > 100 {
-		errs["grade"] = "harus antara 0 dan 100"
-	}
-	if len(errs) > 0 {
+	if errs := helper.ValidateStruct(req); errs != nil {
 		return helper.Validation(errs)
 	}
 
@@ -197,7 +184,7 @@ func (s *StudentService) Patch(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return helper.BadRequest("body harus berupa JSON yang valid")
 	}
-	if req.NIM == nil && req.Name == nil && req.Email == nil && req.Grade == nil && req.IsActive == nil {
+	if IsEmptyPatch(req) {
 		return helper.BadRequest("tidak ada field yang diubah")
 	}
 
@@ -209,46 +196,12 @@ func (s *StudentService) Patch(c *fiber.Ctx) error {
 		return helper.Forbidden("tidak berhak mengubah data student ini")
 	}
 
-	errs := map[string]string{}
-	if req.NIM != nil {
-		nim := strings.TrimSpace(*req.NIM)
-		if nim == "" {
-			errs["nim"] = "tidak boleh kosong"
-		} else {
-			target.NIM = nim
-		}
-	}
-	if req.Name != nil {
-		name := strings.TrimSpace(*req.Name)
-		if name == "" {
-			errs["name"] = "tidak boleh kosong"
-		} else {
-			target.Name = name
-		}
-	}
-	if req.Email != nil {
-		email := strings.TrimSpace(*req.Email)
-		if !isValidEmail(email) {
-			errs["email"] = "format email tidak valid"
-		} else {
-			target.Email = email
-		}
-	}
-	if req.Grade != nil {
-		if *req.Grade < 0 || *req.Grade > 100 {
-			errs["grade"] = "harus antara 0 dan 100"
-		} else {
-			target.Grade = *req.Grade
-		}
-	}
-	if req.IsActive != nil {
-		target.IsActive = *req.IsActive
-	}
-	if len(errs) > 0 {
+	if errs := helper.ValidateStruct(req); errs != nil {
 		return helper.Validation(errs)
 	}
 
-	result, err := s.repo.Update(ctx, target)
+	updated := ApplyPatch(target, req)
+	result, err := s.repo.Update(ctx, updated)
 	if err != nil {
 		return translateError(err, "student")
 	}

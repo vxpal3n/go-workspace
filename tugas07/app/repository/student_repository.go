@@ -260,7 +260,7 @@ func (r *studentPostgresRepository) FindAfterCursor(ctx context.Context, q model
 	}
 	args = append(args, q.Limit+1)
 	query := fmt.Sprintf(
-		"SELECT %s FROM students%s ORDER BY created_at ASC, id ASC LIMIT $%d",
+		"SELECT %s FROM students%s ORDER BY created_at DESC, id DESC LIMIT $%d",
 		studentColumns, where, len(args))
 	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {

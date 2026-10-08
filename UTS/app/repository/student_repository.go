@@ -15,6 +15,9 @@ import (
 const studentColumns = `s.id, s.user_id, s.nim, s.nama, s.prodi, s.angkatan,
 	s.ipk_terakhir, s.deleted_at, s.created_at, s.updated_at`
 
+const studentColumnsBare = `id, user_id, nim, nama, prodi, angkatan,
+	ipk_terakhir, deleted_at, created_at, updated_at`
+
 type StudentRepository interface {
 	CreateWithUser(ctx context.Context, email, passwordHash string, s model.Student) (model.Student, error)
 
@@ -121,7 +124,7 @@ func (r *studentPostgresRepository) Update(ctx context.Context, s model.Student)
 		`UPDATE students
 		 SET nama = $1, prodi = $2, angkatan = $3, ipk_terakhir = $4, updated_at = NOW()
 		 WHERE id = $5 AND deleted_at IS NULL
-		 RETURNING `+studentColumns,
+		 RETURNING `+studentColumnsBare,
 		s.Nama, s.Prodi, s.Angkatan, s.IPKTerakhir, s.ID,
 	).Scan(&s.ID, &s.UserID, &s.NIM, &s.Nama, &s.Prodi, &s.Angkatan,
 		&s.IPKTerakhir, &s.DeletedAt, &s.CreatedAt, &s.UpdatedAt)

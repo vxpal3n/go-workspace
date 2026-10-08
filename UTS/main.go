@@ -8,6 +8,8 @@ import (
 	"syscall"
 	"time"
 
+	"UTS/app/repository"
+	"UTS/app/service"
 	"UTS/config"
 	"UTS/database"
 	"UTS/helper"
@@ -39,9 +41,29 @@ func main() {
 		config.GetEnv("JWT_ISSUER", "siakad-mini"),
 		time.Duration(config.GetEnvInt("JWT_ACCESS_TTL_MINUTES", 60))*time.Minute,
 	)
-	_ = jwtManager
 
-	app := config.NewApp(logger, route.Dependencies{})
+	userRepo := repository.NewUserRepository(pool)
+	studentRepo := repository.NewStudentRepository(pool)
+	courseRepo := repository.NewCourseRepository(pool)
+	enrollmentRepo := repository.NewEnrollmentRepository(pool)
+
+	authService := service.NewAuthService(userRepo, studentRepo, jwtManager)
+	studentService := service.NewStudentService(studentRepo, enrollmentRepo)
+	courseService := service.NewCourseService(courseRepo)
+	enrollmentService := service.NewEnrollmentService(studentRepo, courseRepo, enrollmentRepo)
+
+	logger.Info("aplikasi siap",
+		slog.String("app", config.GetEnv("APP_NAME", "SIAKAD Mini")),
+		slog.String("env", config.GetEnv("APP_ENV", "development")))
+
+	app := config.NewApp(logger, route.Dependencies{
+		Pool:              pool,
+		JWT:               jwtManager,
+		AuthService:       authService,
+		StudentService:    studentService,
+		CourseService:     courseService,
+		EnrollmentService: enrollmentService,
+	})
 
 	port := config.GetEnv("APP_PORT", "3000")
 	go func() {

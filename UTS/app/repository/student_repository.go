@@ -106,7 +106,8 @@ func (r *studentPostgresRepository) FindByID(ctx context.Context, id int) (model
 func (r *studentPostgresRepository) FindByUserID(ctx context.Context, userID int) (model.Student, error) {
 	var s model.Student
 	err := r.pool.QueryRow(ctx,
-		`SELECT `+studentColumns+` FROM students s WHERE s.user_id = $1`,
+		`SELECT `+studentColumns+` FROM students s
+		 WHERE s.user_id = $1 AND s.deleted_at IS NULL`,
 		userID,
 	).Scan(&s.ID, &s.UserID, &s.NIM, &s.Nama, &s.Prodi, &s.Angkatan,
 		&s.IPKTerakhir, &s.DeletedAt, &s.CreatedAt, &s.UpdatedAt)

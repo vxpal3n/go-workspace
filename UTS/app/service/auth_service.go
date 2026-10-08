@@ -47,6 +47,12 @@ func (s *AuthService) Login(c *fiber.Ctx) error {
 		return helper.Unauthorized("email atau password salah")
 	}
 
+	if user.Role == "mahasiswa" {
+		if _, err := s.students.FindByUserID(ctx, user.ID); err != nil {
+			return helper.Unauthorized("Akun Anda sudah tidak aktif")
+		}
+	}
+
 	accessToken, err := s.jwt.GenerateAccess(user)
 	if err != nil {
 		return helper.Internal(err)

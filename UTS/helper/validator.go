@@ -27,6 +27,10 @@ func newValidator() *validator.Validate {
 		if len(parts) != 2 {
 			return false
 		}
+		semester := parts[1]
+		if semester != "Ganjil" && semester != "Genap" {
+			return false
+		}
 		years := strings.SplitN(parts[0], "/", 2)
 		if len(years) != 2 {
 			return false
@@ -34,8 +38,7 @@ func newValidator() *validator.Validate {
 		if len(years[0]) != 4 || len(years[1]) != 4 {
 			return false
 		}
-		semester := parts[1]
-		return semester == "Ganjil" || semester == "Genap"
+		return true
 	})
 
 	return v

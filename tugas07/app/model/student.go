@@ -4,7 +4,7 @@ import "time"
 
 type Student struct {
 	ID        int       `json:"id"`
-	NIM       string    `json:"nim"`
+	NIM       string    `json:"nim"      validate:"required,nim"`
 	Name      string    `json:"name"`
 	Email     string    `json:"email"`
 	Grade     float64   `json:"grade"`
@@ -16,7 +16,7 @@ type Student struct {
 }
 
 type CreateStudentRequest struct {
-	NIM      string  `json:"nim"      validate:"required,min=3,max=20,alphanum"`
+	NIM      string  `json:"nim"      validate:"required,nim"`
 	Name     string  `json:"name"     validate:"required,min=2,max=100"`
 	Email    string  `json:"email"    validate:"required,email,max=120"`
 	Grade    float64 `json:"grade"    validate:"min=0,max=100"`
@@ -24,7 +24,7 @@ type CreateStudentRequest struct {
 }
 
 type ReplaceStudentRequest struct {
-	NIM      string  `json:"nim"      validate:"required,min=3,max=20,alphanum"`
+	NIM      string  `json:"nim"      validate:"required,nim"`
 	Name     string  `json:"name"     validate:"required,min=2,max=100"`
 	Email    string  `json:"email"    validate:"required,email,max=120"`
 	Grade    float64 `json:"grade"    validate:"min=0,max=100"`
@@ -32,7 +32,7 @@ type ReplaceStudentRequest struct {
 }
 
 type PatchStudentRequest struct {
-	NIM      *string  `json:"nim,omitempty"      validate:"omitnil,min=3,max=20,alphanum"`
+	NIM      *string  `json:"nim,omitempty"      validate:"omitnil,nim"`
 	Name     *string  `json:"name,omitempty"     validate:"omitnil,min=2,max=100"`
 	Email    *string  `json:"email,omitempty"    validate:"omitnil,email,max=120"`
 	Grade    *float64 `json:"grade,omitempty"    validate:"omitnil,min=0,max=100"`

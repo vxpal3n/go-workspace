@@ -3,7 +3,7 @@ package model
 import "time"
 
 type RegisterRequest struct {
-	NIM      string  `json:"nim"      validate:"required,min=3,max=20,alphanum"`
+	NIM 	 string  `json:"nim"      validate:"required,nim"`
 	Name     string  `json:"name"     validate:"required,min=2,max=100"`
 	Email    string  `json:"email"    validate:"required,email,max=120"`
 	Grade    float64 `json:"grade"    validate:"min=0,max=100"`
@@ -11,7 +11,7 @@ type RegisterRequest struct {
 }
 
 type LoginRequest struct {
-	NIM      string `json:"nim"`
+	NIM      string `json:"nim"       validate:"required,nim"` 
 	Password string `json:"password"`
 }
 
@@ -37,6 +37,6 @@ type RefreshToken struct {
 
 type AuthUser struct {
 	StudentID int    `json:"student_id"`
-	NIM       string `json:"nim"`
+	NIM       string `json:"nim"      validate:"required,nim"`
 	Role      string `json:"role"`
 }

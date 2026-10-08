@@ -1,418 +1,489 @@
-# Tugas 05 – Authentication & Security
+# Tugas 06 – Authorization & Role-Based Access Control
 
-Implementasi Modul 5 untuk mata kuliah **Pemrograman Backend Lanjut (SIP375)**.
+Implementasi Modul 6 untuk mata kuliah **Pemrograman Backend Lanjut (SIP375)**.
 
-Modul ini merupakan pengembangan dari API Students pada Modul 4. Fokus utama bukan menambah fitur CRUD baru, tetapi **menambahkan sistem authentication dan security** ke dalam aplikasi yang sudah menerapkan Clean Architecture.
+Modul ini merupakan kelanjutan langsung dari Modul 5. Jika Modul 5 menyelesaikan masalah **authentication** dengan JWT, Modul 6 menyelesaikan masalah berikutnya: **siapa yang boleh melakukan apa terhadap data tertentu**.
 
-Perubahan utama meliputi registrasi akun student, login berbasis NIM dan password, penerapan JWT sebagai access token, mekanisme refresh token dengan rotation, penyimpanan refresh token dalam bentuk hash, middleware `RequireAuth` untuk melindungi endpoint, serta beberapa lapisan pengamanan tambahan seperti bcrypt, rate limiting, CORS terbatas, body limit, dan mitigasi timing attack.
+Fokus utama modul ini adalah penerapan **Role-Based Access Control (RBAC)**, permission, ownership check, dan business rule yang bergantung pada identitas pengguna.
+
+Implementasi mempertahankan pendekatan **Clean Architecture** dari modul sebelumnya dengan pembagian tanggung jawab:
+
+* **Middleware** menangani keputusan akses yang cukup ditentukan dari role dan permission.
+* **Service** menangani keputusan yang membutuhkan data, seperti ownership.
+* **Business rules** dipisahkan agar dapat diuji tanpa menjalankan server.
+* **Fail closed** diterapkan sehingga role atau permission yang tidak dikenal tidak pernah otomatis mendapatkan akses.
+
+---
 
 ## Tujuan
 
-Modul 5 merupakan pengembangan dari API Students pada Modul 4 dengan menambahkan sistem **authentication dan security** menggunakan `Student` sebagai entitas autentikasi.
+Modul 6 bertujuan menambahkan sistem **authorization** pada API Students yang sebelumnya telah memiliki authentication.
 
-Implementasi pada modul ini mencakup:
+Implementasi mencakup:
 
-* Registrasi akun student.
-* Login menggunakan NIM dan password.
-* Password hashing menggunakan **bcrypt**.
-* Access token menggunakan **JWT**.
-* Refresh token dengan mekanisme **rotation**.
-* Penyimpanan refresh token dalam bentuk hash.
-* Middleware `RequireAuth` untuk melindungi endpoint.
-* Rate limiting pada endpoint login.
-* Pembatasan origin menggunakan CORS.
-* Pembatasan ukuran request body menggunakan `BodyLimit`.
-* Validasi `JWT_SECRET` sebelum server dijalankan.
-* Pencegahan **mass assignment** terhadap field `role`.
-* Mitigasi timing attack pada proses login.
+* RBAC menggunakan tabel `roles`, `permissions`, dan `role_permissions`.
+* Tiga role: `admin`, `staff`, dan `user`.
+* Permission untuk operasi pada resource `students`.
+* Middleware `RequirePermission`.
+* Ownership check menggunakan `owner_id`.
+* Pemisahan keputusan authorization antara middleware dan service.
+* Pencegahan `owner_id` spoofing.
+* Business rule untuk mencegah penghapusan akun sendiri.
+* Business rule untuk mencegah perubahan role diri sendiri.
+* Prinsip **fail closed**.
+* Penggunaan status `401`, `403`, dan `422` sesuai konteks.
+* Unit test untuk authorization rules.
 
-Struktur aplikasi tetap mempertahankan pendekatan **Clean Architecture** dari Modul 4.
+Modul ini tidak menggantikan authentication dari Modul 5. Authorization dibangun di atas identitas pengguna yang sudah diperoleh melalui JWT.
+
+---
+
+## Konsep Authentication vs Authorization
+
+Modul 5 menjawab:
+
+```text
+"Siapa pengguna ini?"
+```
+
+Modul 6 menjawab:
+
+```text
+"Pengguna ini boleh melakukan apa?"
+```
+
+Alur sederhananya:
+
+```text
+Request
+   |
+   v
+RequireAuth
+   |
+   |  JWT valid?
+   v
+Current User
+   |
+   v
+Permission / Ownership Check
+   |
+   +---- allowed ----> Service
+   |
+   +---- denied -----> 403
+```
+
+Authentication tetap menggunakan mekanisme JWT dari Modul 5, sedangkan authorization menggunakan role, permission, dan ownership.
 
 ---
 
 ## Teknologi
 
-| Komponen         | Teknologi                             |
-| :--------------- | :------------------------------------ |
-| Bahasa           | Go                                    |
-| Framework        | Fiber v2                              |
-| Database         | PostgreSQL                            |
-| Database Driver  | pgx/v5 + pgxpool                      |
-| Authentication   | JWT                                   |
-| Password Hashing | bcrypt                                |
-| Refresh Token    | Cryptographically Secure Random Token |
-| Hashing Token    | SHA-256                               |
-| Rate Limiting    | Fiber Limiter                         |
-| CORS             | Fiber CORS                            |
-| Security Headers | Fiber Helmet                          |
-| Logging          | `log/slog` + lumberjack               |
-| Testing          | Go testing                            |
+| Komponen         | Teknologi               |
+| :--------------- | :---------------------- |
+| Bahasa           | Go 1.27.0               |
+| Framework        | Fiber v2                |
+| Database         | PostgreSQL 15+          |
+| Database Driver  | pgx/v5 + pgxpool        |
+| Authentication   | JWT                     |
+| Password Hashing | bcrypt                  |
+| Authorization    | RBAC + Ownership        |
+| Testing          | Go testing + `curl`     |
+| Logging          | `log/slog` + lumberjack |
 
 ---
 
-## Struktur Folder
+## Role
 
-```text
-tugas05/
-├── .env.example
-├── .gitignore
-├── go.mod
-├── go.sum
-├── main.go
-├── README.md
-├── app/
-│   ├── model/
-│   │   ├── student.go
-│   │   └── auth.go
-│   ├── repository/
-│   │   ├── student_repository.go
-│   │   └── token_repository.go
-│   └── service/
-│       ├── student_service.go
-│       ├── student_rules.go
-│       ├── auth_service.go
-│       ├── auth_rules.go
-│       └── auth_rules_test.go
-├── helper/
-│   ├── response.go
-│   ├── request.go
-│   ├── security.go
-│   ├── jwt.go
-│   └── context.go
-├── middleware/
-│   ├── middleware.go
-│   └── auth.go
-├── route/
-│   └── route.go
-├── config/
-│   ├── env.go
-│   ├── logger.go
-│   └── app.go
-├── database/
-│   └── postgres.go
-├── migrations/
-│   ├── 001_create_students.sql
-│   └── 002_auth.sql
-└── logs/
-    └── app.log
-```
+Modul ini menggunakan tiga role:
 
-Folder `logs/` tidak disimpan dalam repository karena telah dimasukkan ke `.gitignore`.
+| Role    | Deskripsi                                                                                  |
+| :------ | :----------------------------------------------------------------------------------------- |
+| `admin` | Memiliki akses penuh terhadap data student dan pengaturan role                             |
+| `staff` | Dapat melihat dan membuat data student, tetapi tidak dapat mengubah atau menghapus data    |
+| `user`  | Tidak memiliki permission global; akses terhadap data sendiri ditentukan melalui ownership |
+
+Role `user` sengaja tidak diberikan permission seperti `student:list` atau `student:read:any`.
+
+Akses terhadap data milik sendiri berasal dari **ownership**, bukan dari permission global.
 
 ---
 
-## Konsep Authentication
+## Permission
 
-Pada Modul 5, entitas `Student` tidak hanya digunakan sebagai business entity, tetapi juga menjadi **entitas autentikasi**.
+Permission yang digunakan:
 
-Field authentication yang ditambahkan:
+| Permission           | Fungsi                         |
+| :------------------- | :----------------------------- |
+| `student:list`       | Melihat daftar seluruh student |
+| `student:read:any`   | Melihat data student mana pun  |
+| `student:create`     | Membuat student baru           |
+| `student:update:any` | Mengubah data student mana pun |
+| `student:delete`     | Menghapus student              |
+| `role:assign`        | Mengubah role student lain     |
 
-| Field       | Fungsi                                         |
-| :---------- | :--------------------------------------------- |
-| `email`     | Identitas email student                        |
-| `password`  | Password yang telah di-hash menggunakan bcrypt |
-| `role`      | Role pengguna                                  |
-| `is_active` | Status akun                                    |
+Matriks dasar permission:
 
-Password menggunakan tag JSON `json:"-"` sehingga tidak pernah dikirimkan dalam response API.
+| Permission           | `admin` | `staff` | `user` |
+| :------------------- | :-----: | :-----: | :----: |
+| `student:list`       |   Yes   |   Yes   |   No   |
+| `student:read:any`   |   Yes   |   Yes   |   No   |
+| `student:create`     |   Yes   |   Yes   |   No   |
+| `student:update:any` |   Yes   |    No   |   No   |
+| `student:delete`     |   Yes   |    No   |   No   |
+| `role:assign`        |   Yes   |    No   |   No   |
 
-Role tidak dapat dikontrol melalui request. Pada proses registrasi, server secara otomatis menetapkan role:
-
-```text
-user
-```
-
-Hal ini digunakan untuk mencegah **mass assignment**, sehingga client tidak dapat mendaftarkan dirinya sebagai administrator.
+`user` tetap dapat mengakses data miliknya sendiri melalui ownership check.
 
 ---
 
 ## Database
 
-Migration kedua digunakan untuk menambahkan kebutuhan authentication ke database.
-
-### Migration
+RBAC menggunakan tiga tabel utama:
 
 ```text
-migrations/
-├── 001_create_students.sql
-└── 002_auth.sql
+roles
+  |
+  +---- role_permissions ---- permissions
 ```
 
-Migration `002_auth.sql` melakukan beberapa perubahan:
+### `roles`
 
-1. Menghapus data student lama karena data tersebut belum memiliki password.
-2. Menambahkan kolom `email`.
-3. Menambahkan kolom `password`.
-4. Menambahkan kolom `role`.
-5. Membuat unique index case-insensitive pada email.
-6. Membuat tabel `refresh_tokens`.
-7. Membuat index untuk `student_id` dan `token_hash`.
+Menyimpan daftar role yang tersedia.
 
-Struktur tabel `refresh_tokens`:
-
-| Kolom        | Tipe          | Keterangan                |
-| :----------- | :------------ | :------------------------ |
-| `id`         | `BIGSERIAL`   | Primary key               |
-| `student_id` | `INTEGER`     | Foreign key ke `students` |
-| `token_hash` | `TEXT`        | Hash refresh token        |
-| `expires_at` | `TIMESTAMPTZ` | Waktu kedaluwarsa         |
-| `revoked_at` | `TIMESTAMPTZ` | Waktu token dicabut       |
-| `created_at` | `TIMESTAMPTZ` | Waktu token dibuat        |
-
-Refresh token **tidak disimpan dalam bentuk plaintext**, melainkan hash SHA-256.
-
-### Menjalankan Migration
-
-Pastikan database `db_students` sudah tersedia, kemudian jalankan:
-
-```bash
-psql -U postgres -d db_students -f tugas05/migrations/001_create_students.sql
-psql -U postgres -d db_students -f tugas05/migrations/002_auth.sql
+```sql
+CREATE TABLE IF NOT EXISTS roles (
+    name VARCHAR(20) PRIMARY KEY,
+    description VARCHAR(150) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 ```
 
-Verifikasi struktur tabel:
+Role yang digunakan:
 
-```bash
-psql -U postgres -d db_students -c "\d students"
-psql -U postgres -d db_students -c "\d refresh_tokens"
+```text
+admin
+staff
+user
+```
+
+### `permissions`
+
+Menyimpan daftar permission yang tersedia.
+
+```sql
+CREATE TABLE IF NOT EXISTS permissions (
+    name VARCHAR(50) PRIMARY KEY,
+    description VARCHAR(150) NOT NULL
+);
+```
+
+### `role_permissions`
+
+Menghubungkan role dengan permission.
+
+```sql
+CREATE TABLE IF NOT EXISTS role_permissions (
+    role_name VARCHAR(20) NOT NULL REFERENCES roles(name) ON DELETE CASCADE,
+    permission_name VARCHAR(50) NOT NULL REFERENCES permissions(name) ON DELETE CASCADE,
+    PRIMARY KEY (role_name, permission_name)
+);
 ```
 
 ---
 
-## Environment Variables
+## Ownership
 
-Buat file `.env` di dalam folder `tugas05/`.
-
-```env
-APP_PORT=3000
-APP_NAME=Praktikum Backend Lanjut - Tugas05
-
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=
-DB_NAME=db_students
-DB_SSLMODE=disable
-DB_MAX_CONNS=10
-
-JWT_SECRET=
-JWT_ISSUER=praktikum-backend
-JWT_ACCESS_TTL_MINUTES=15
-JWT_REFRESH_TTL_DAYS=7
-
-ALLOWED_ORIGINS=http://localhost:5173
-
-LOG_LEVEL=info
-```
-
-Contoh konfigurasi tersedia pada:
+Migration authorization menambahkan:
 
 ```text
-tugas05/.env.example
+students.owner_id
 ```
 
-`JWT_SECRET` wajib memiliki panjang minimal **32 karakter**.
-
-Generate secret menggunakan:
-
-```bash
-openssl rand -hex 32
-```
-
-File `.env` tidak boleh dimasukkan ke repository.
-
-Verifikasi:
-
-```bash
-cd tugas05
-git check-ignore .env
-```
-
-Jika menghasilkan:
+Kolom ini merupakan foreign key yang mengarah kembali ke:
 
 ```text
-.env
+students(id)
 ```
 
-berarti file telah berhasil di-ignore.
+sehingga ownership dapat direpresentasikan secara langsung pada record student.
+
+Struktur sederhananya:
+
+```text
+students
+├── id
+├── nim
+├── name
+├── email
+├── role
+├── owner_id
+└── ...
+```
+
+`owner_id` bersifat nullable.
+
+Alasannya:
+
+* Student yang melakukan self-register tidak memiliki owner eksternal.
+* Student yang dibuat melalui `POST /students` memiliki `owner_id` yang berasal dari pengguna yang sedang login.
 
 ---
 
-## Security Implementation
+## Ownership vs Permission
 
-### 1. Password Hashing
+Authorization terhadap student tidak hanya bergantung pada permission.
 
-Password tidak disimpan secara langsung ke database.
-
-Proses registrasi:
+Untuk endpoint yang membutuhkan akses terhadap satu student, terdapat tiga jalur yang dapat memberikan akses:
 
 ```text
-Plain Password
-      |
-      v
-   bcrypt
-      |
-      v
-Password Hash
-      |
-      v
- PostgreSQL
+1. Self-access
+   current.StudentID == targetID
+
+2. Ownership
+   current.StudentID == ownerID
+
+3. Permission-based
+   role memiliki permission :any
 ```
 
-Implementasi menggunakan bcrypt dengan cost `12`.
+Contohnya:
+
+```text
+User A
+  |
+  +---- mengakses student miliknya sendiri
+  |          -> ALLOWED
+  |
+  +---- mengakses student yang bukan miliknya
+  |          -> DENIED
+  |
+  +---- admin mengakses student lain
+             -> ALLOWED
+```
+
+Ketiga jalur gagal berarti akses ditolak.
 
 ---
 
-### 2. JWT Access Token
+## Fail Closed
 
-Access token digunakan untuk mengakses endpoint yang membutuhkan autentikasi.
+Authorization menggunakan prinsip **fail closed**.
 
-Payload token membawa informasi minimal:
-
-```json
-{
-  "student_id": 1,
-  "nim": "S001",
-  "role": "user"
-}
-```
-
-Token menggunakan:
+Artinya, jika sistem tidak dapat membuktikan bahwa suatu akses diperbolehkan, hasilnya adalah:
 
 ```text
-Algorithm : HS256
-Issuer    : praktikum-backend
-Expiration: 15 menit
+DENY
 ```
 
-Middleware akan menolak token yang:
+Contohnya:
 
-* Tidak valid.
-* Telah dimodifikasi.
-* Kedaluwarsa.
-* Menggunakan algoritma yang tidak diharapkan.
-* Tidak memiliki expiration claim.
+* `PermissionSet` bernilai `nil` → ditolak.
+* Role tidak dikenal → ditolak.
+* Permission tidak dikenal → ditolak.
+* User bukan pemilik → ditolak.
+* User tidak memiliki permission `:any` → ditolak.
 
-Implementasi juga melakukan pemeriksaan terhadap algoritma JWT untuk mencegah **algorithm confusion**.
+Tidak ada logika seperti:
+
+```text
+"permission tidak ditemukan, jadi mungkin boleh."
+```
+
+Semua kondisi tidak dikenal dianggap tidak memiliki akses.
 
 ---
 
-### 3. Refresh Token
+## Implementasi PermissionSet
 
-Refresh token dibuat menggunakan random bytes yang aman secara kriptografis.
+Permission dimuat ke dalam memory dalam bentuk mapping role → permission.
+
+Konsepnya:
+
+```text
+admin
+ ├── student:list
+ ├── student:read:any
+ ├── student:create
+ ├── student:update:any
+ ├── student:delete
+ └── role:assign
+
+staff
+ ├── student:list
+ ├── student:read:any
+ └── student:create
+
+user
+ └── tidak memiliki permission global
+```
+
+Lookup permission dilakukan melalui `PermissionSet.Can()`.
+
+---
+
+## Middleware Authorization
+
+Middleware:
+
+```text
+RequirePermission
+```
+
+digunakan untuk keputusan yang tidak membutuhkan isi record database.
+
+Contoh:
+
+```text
+GET    /students
+POST   /students
+DELETE /students/:id
+PATCH  /students/:id/role
+```
 
 Alurnya:
 
 ```text
-Login
+JWT
+ |
+ v
+CurrentUser
+ |
+ v
+PermissionSet.Can(role, permission)
+ |
+ +---- true  ---> next handler
+ |
+ +---- false ---> 403 Forbidden
+```
+
+Middleware tidak bertanggung jawab terhadap ownership.
+
+---
+
+## Ownership Check di Service
+
+Ownership ditempatkan di service karena service perlu mengetahui data target.
+
+Fungsi utama:
+
+```text
+CanAccessStudent
+```
+
+memeriksa:
+
+```text
+self-access
+    OR
+ownership
+    OR
+permission :any
+```
+
+Pendekatan ini menghindari middleware melakukan query database hanya untuk mengetahui siapa pemilik suatu record.
+
+---
+
+## Business Rules
+
+Beberapa aturan tidak cukup diselesaikan dengan permission.
+
+### Tidak boleh menghapus akun sendiri
+
+Walaupun seorang `admin` memiliki:
+
+```text
+student:delete
+```
+
+admin tetap tidak boleh menghapus dirinya sendiri.
+
+Hasil:
+
+```text
+403 Forbidden
+```
+
+Aturan ini membutuhkan perbandingan:
+
+```text
+current.StudentID
+```
+
+dengan:
+
+```text
+targetID
+```
+
+sehingga keputusan berada di service.
+
+---
+
+### Tidak boleh mengubah role diri sendiri
+
+Admin memiliki:
+
+```text
+role:assign
+```
+
+tetapi tidak boleh mengubah role dirinya sendiri.
+
+Contoh:
+
+```text
+Admin A
   |
-  +---- Access Token
+  +---- mengubah role User B
+  |         -> allowed
   |
-  +---- Refresh Token
-             |
-             v
-        SHA-256 Hash
-             |
-             v
-       PostgreSQL
+  +---- mengubah role dirinya sendiri
+            -> 422
 ```
 
-Refresh token memiliki masa berlaku default:
+Perbedaannya penting:
 
 ```text
-7 hari
-```
+403 = tidak memiliki hak
 
-Refresh token lama akan dicabut ketika digunakan untuk mendapatkan token baru.
-
-Dengan demikian, mekanisme yang digunakan adalah **refresh token rotation**.
-
----
-
-### 4. Timing Attack Mitigation
-
-Jika NIM tidak ditemukan, aplikasi tetap menjalankan operasi bcrypt menggunakan dummy hash.
-
-Tujuannya agar perbedaan waktu response antara:
-
-```text
-NIM tidak ditemukan
-```
-
-dan:
-
-```text
-NIM ditemukan tetapi password salah
-```
-
-tidak terlalu mudah digunakan untuk mengetahui apakah sebuah NIM terdaftar.
-
-Pesan error untuk kedua kondisi juga dibuat sama:
-
-```text
-NIM atau password salah
+422 = memiliki hak, tetapi request melanggar business rule
 ```
 
 ---
 
-### 5. Rate Limiting
+## Pencegahan `owner_id` Spoofing
 
-Endpoint login memiliki batas:
+Client tidak diperbolehkan menentukan owner melalui request body.
+
+Contoh request berbahaya:
+
+```json
+{
+  "nim": "X001",
+  "name": "Spoof",
+  "email": "spoof@test.com",
+  "grade": 80,
+  "password": "Rahasia123",
+  "owner_id": 999
+}
+```
+
+Field tersebut tidak digunakan untuk menentukan ownership.
+
+Server mengambil owner dari authenticated user:
 
 ```text
-5 request / 1 menit / IP
+JWT
+  |
+  v
+CurrentUser.StudentID
+  |
+  v
+owner_id
 ```
 
-Jika batas terlampaui, API memberikan:
-
-```text
-429 Too Many Requests
-```
-
-serta header:
-
-```text
-Retry-After: 60
-```
-
-Rate limiter digunakan untuk mengurangi risiko brute-force login.
-
----
-
-### 6. CORS
-
-CORS tidak lagi menggunakan konfigurasi terbuka.
-
-Origin dikontrol melalui:
-
-```env
-ALLOWED_ORIGINS=http://localhost:5173
-```
-
-Method yang diizinkan:
-
-```text
-GET
-POST
-PUT
-PATCH
-DELETE
-OPTIONS
-```
-
-Header `Authorization` juga secara eksplisit diizinkan untuk kebutuhan Bearer Token.
-
----
-
-### 7. Body Limit
-
-Ukuran request body dibatasi hingga:
-
-```text
-1 MB
-```
-
-Konfigurasi ini digunakan untuk mengurangi risiko penggunaan resource secara berlebihan melalui payload berukuran besar.
+Dengan demikian client tidak dapat mengaku sebagai pemilik record lain.
 
 ---
 
@@ -424,212 +495,213 @@ Base URL:
 http://localhost:3000/api/v1
 ```
 
-### Health Check
+### Student Endpoints
 
-| Method | Endpoint  | Auth | Fungsi                               |
-| :----- | :-------- | :--: | :----------------------------------- |
-| `GET`  | `/health` |  No  | Mengecek server dan koneksi database |
+| Method   | Endpoint             | Permission / Rule                | Fungsi                   |
+| :------- | :------------------- | :------------------------------- | :----------------------- |
+| `GET`    | `/students`          | `student:list`                   | Melihat seluruh student  |
+| `GET`    | `/students/:id`      | Ownership / `student:read:any`   | Melihat student tertentu |
+| `POST`   | `/students`          | `student:create`                 | Membuat student          |
+| `PUT`    | `/students/:id`      | Ownership / `student:update:any` | Mengubah student         |
+| `PATCH`  | `/students/:id`      | Ownership / `student:update:any` | Mengubah sebagian data   |
+| `DELETE` | `/students/:id`      | `student:delete` + business rule | Menghapus student        |
+| `PATCH`  | `/students/:id/role` | `role:assign` + business rule    | Mengubah role            |
 
-Response sukses:
+Semua endpoint student tetap melewati authentication dari Modul 5.
+
+---
+
+## Matriks Akses
+
+Hasil pengujian utama:
+
+| Request                                   | `admin` | `staff` | `user` |
+| :---------------------------------------- | :-----: | :-----: | :----: |
+| `GET /students`                           |  `200`  |  `200`  |  `403` |
+| `GET /students/:id` — self                |  `200`  |  `200`  |  `200` |
+| `GET /students/:id` — milik orang lain    |  `200`  |  `200`  |  `403` |
+| `POST /students`                          |  `201`  |  `201`  |  `403` |
+| `PUT /students/:id` — milik orang lain    |  `200`  |  `403`  |  `403` |
+| `DELETE /students/:id` — orang lain       |  `204`  |  `403`  |  `403` |
+| `DELETE /students/:id` — diri sendiri     |  `403`  |  `403`  |  `403` |
+| `PATCH /students/:id/role` — orang lain   |  `200`  |  `403`  |  `403` |
+| `PATCH /students/:id/role` — diri sendiri |  `422`  |  `403`  |  `403` |
+| Tanpa Authorization                       |  `401`  |  `401`  |  `401` |
+
+---
+
+## Status HTTP
+
+Authorization dibedakan dari authentication dan business validation:
+
+| Status                     | Makna                                                     |
+| :------------------------- | :-------------------------------------------------------- |
+| `401 Unauthorized`         | Request tidak memiliki authentication yang valid          |
+| `403 Forbidden`            | User sudah terautentikasi tetapi tidak memiliki hak akses |
+| `422 Unprocessable Entity` | Request melanggar business rule                           |
+
+Contoh:
+
+```text
+Tidak ada token
+    -> 401
+
+User mencoba membaca data milik orang lain
+    -> 403
+
+Admin mencoba mengubah role dirinya sendiri
+    -> 422
+```
+
+---
+
+## Pengujian Negatif
+
+Modul ini tidak hanya menguji happy path.
+
+Beberapa skenario keamanan yang diuji:
+
+### Owner ID Spoofing
+
+Client mencoba mengirim:
+
+```text
+owner_id = 999
+```
+
+Hasil:
+
+```text
+owner_id tetap berasal dari authenticated user.
+```
+
+---
+
+### User Mengubah Data Orang Lain
+
+User mencoba:
+
+```text
+PUT /students/1
+```
+
+terhadap student yang bukan miliknya.
+
+Hasil:
+
+```text
+403 Forbidden
+```
+
+---
+
+### Staff Create
+
+Staff membuat student baru.
+
+Database kemudian diverifikasi untuk memastikan:
+
+```text
+owner_id = id staff
+```
+
+bukan nilai yang dikirim oleh client.
+
+---
+
+### Role Berubah tetapi Token Lama
+
+JWT bersifat stateless.
+
+Jika:
+
+```text
+user
+```
+
+diubah menjadi:
+
+```text
+staff
+```
+
+token lama masih membawa:
 
 ```json
 {
-  "success": true,
-  "message": "server dan database berjalan"
+  "role": "user"
 }
 ```
 
----
+hingga token tersebut kedaluwarsa.
 
-## Authentication Endpoints
+Setelah login ulang, token baru membawa role terbaru.
 
-| Method | Endpoint         | Auth | Fungsi                                      |
-| :----- | :--------------- | :--: | :------------------------------------------ |
-| `POST` | `/auth/register` |  No  | Membuat akun student                        |
-| `POST` | `/auth/login`    |  No  | Login dan mendapatkan token                 |
-| `POST` | `/auth/refresh`  |  No  | Memperbarui access token                    |
-| `POST` | `/auth/logout`   |  No  | Mencabut refresh token                      |
-| `GET`  | `/auth/me`       |  Yes | Mengambil profil pengguna yang sedang login |
-
-Endpoint authentication didaftarkan pada route `/api/v1/auth`.
+Ini merupakan karakteristik desain token stateless, bukan bug implementasi.
 
 ---
 
-## Student Endpoints
+## Unit Testing
 
-Mulai Modul 5, seluruh endpoint student membutuhkan access token.
+Business rules authorization diuji secara terisolasi.
 
-| Method   | Endpoint        | Auth | Fungsi                         |
-| :------- | :-------------- | :--: | :----------------------------- |
-| `GET`    | `/students`     |  Yes | Daftar student                 |
-| `GET`    | `/students/:id` |  Yes | Detail student                 |
-| `PUT`    | `/students/:id` |  Yes | Mengganti data student         |
-| `PATCH`  | `/students/:id` |  Yes | Mengubah sebagian data student |
-| `DELETE` | `/students/:id` |  Yes | Menghapus student              |
-
-Endpoint:
+Test utama:
 
 ```text
-POST /students
+TestCanAccessStudent
+TestValidateAssignRole
 ```
 
-dihapus.
+`TestCanAccessStudent` memverifikasi:
 
-Pembuatan student sekarang dilakukan melalui:
+* Self-access.
+* Ownership.
+* Permission-based access.
+* Access ditolak jika seluruh kondisi gagal.
+
+`TestValidateAssignRole` memverifikasi:
+
+* Admin dapat mengubah role student lain.
+* Admin tidak dapat mengubah role dirinya sendiri.
+* Role yang tidak dikenal ditolak.
+
+Menjalankan test:
+
+```bash
+cd tugas06
+go test ./app/service -v
+```
+
+---
+
+## Struktur Folder
+
+Struktur aplikasi tetap mengikuti Clean Architecture dari modul sebelumnya.
 
 ```text
-POST /auth/register
+tugas06/
+├── app/
+│   ├── model/
+│   ├── repository/
+│   └── service/
+│       ├── student_service.go
+│       ├── student_rules.go
+│       └── student_authz_rules.go
+├── helper/
+│   └── authz.go
+├── middleware/
+│   └── authz.go
+├── route/
+│   └── route.go
+├── config/
+├── database/
+├── migrations/
+├── main.go
+├── go.mod
+└── README.md
 ```
 
-Hal ini mencegah adanya dua jalur pembuatan akun dengan aturan authentication yang berbeda.
-
----
-
-## Contoh Request
-
-### Register
-
-```bash
-curl -i -X POST http://localhost:3000/api/v1/auth/register -H "Content-Type: application/json" -d '{"nim":"S001","name":"Thaariq","email":"thaariq@example.com","grade":85.5,"password":"rahasia123"}'
-```
-
-Response yang diharapkan:
-
-```text
-201 Created
-```
-
----
-
-### Login
-
-```bash
-curl -X POST http://localhost:3000/api/v1/auth/login -H "Content-Type: application/json" -d '{"nim":"S001","password":"rahasia123"}'
-```
-
-Response akan berisi:
-
-```json
-{
-  "success": true,
-  "message": "login berhasil",
-  "data": {
-    "access_token": "...",
-    "refresh_token": "...",
-    "token_type": "Bearer",
-    "expires_in": 900
-  }
-}
-```
-
----
-
-### Mengakses Profil
-
-Gunakan access token dari hasil login:
-
-```bash
-curl -i http://localhost:3000/api/v1/auth/me -H "Authorization: Bearer ACCESS_TOKEN"
-```
-
----
-
-### Mengakses Student
-
-```bash
-curl http://localhost:3000/api/v1/students -H "Authorization: Bearer ACCESS_TOKEN"
-```
-
----
-
-### Refresh Token
-
-```bash
-curl -X POST http://localhost:3000/api/v1/auth/refresh -H "Content-Type: application/json" -d '{"refresh_token":"REFRESH_TOKEN"}'
-```
-
-Refresh token yang sama tidak dapat digunakan kembali setelah berhasil di-rotate.
-
----
-
-### Logout
-
-```bash
-curl -X POST http://localhost:3000/api/v1/auth/logout -H "Content-Type: application/json" -d '{"refresh_token":"REFRESH_TOKEN"}'
-```
-
----
-
-## Validasi Authentication
-
-Password pada proses registrasi harus:
-
-* Minimal 8 karakter.
-* Mengandung huruf.
-* Mengandung angka.
-* Tidak menggunakan password umum tertentu.
-
-Contoh password yang ditolak:
-
-```text
-abc1
-rahasiaku
-12345678
-password1
-```
-
-Business rules authentication dibuat sebagai fungsi terpisah sehingga dapat diuji tanpa menjalankan Fiber maupun database.
-
----
-
-## Testing
-
-Unit test untuk authentication rules dapat dijalankan dengan:
-
-```bash
-cd tugas05
-go test ./app/service -v -run TestValidate
-```
-
-Validasi yang diuji meliputi:
-
-* Register berhasil.
-* Password terlalu pendek.
-* Password tanpa angka.
-* Password tanpa huruf.
-* Password terlalu umum.
-* Format email tidak valid.
-* Grade berada di luar rentang 0–100.
-
-Untuk memastikan seluruh project dapat dikompilasi dan lolos static analysis:
-
-```bash
-go build ./...
-go vet ./...
-```
-
----
-
-## Skenario Verifikasi
-
-Implementasi Modul 5 diuji menggunakan beberapa skenario utama:
-
-| No. | Skenario                        | Expected Result                           |
-| :-: | :------------------------------ | :---------------------------------------- |
-|  1  | Register dengan data valid      | `201 Created`                             |
-|  2  | Register dengan password lemah  | `422 Unprocessable Entity`                |
-|  3  | Memeriksa password di database  | Password tersimpan sebagai bcrypt hash    |
-|  4  | Akses `/students` tanpa token   | `401 Unauthorized`                        |
-|  5  | Login dengan password salah     | `401 Unauthorized`                        |
-|  6  | Login dengan NIM tidak ada      | `401 Unauthorized` dengan pesan yang sama |
-|  7  | Login dengan credential benar   | `200 OK` + access/refresh token           |
-|  8  | Access token valid              | Request berhasil                          |
-|  9  | Access token dimodifikasi       | `401 Unauthorized`                        |
-|  10 | Refresh token digunakan kembali | `401 Unauthorized`                        |
-|  11 | Percobaan login berlebihan      | `429 Too Many Requests`                   |
-|  12 | Register dengan `role: admin`   | Role tetap `user`                         |
-
-Skenario tersebut mencakup authentication, authorization middleware, token security, refresh token rotation, rate limiting, dan mass assignment protection.
+Nama file dapat berkembang mengikuti implementasi, tetapi tanggung jawab setiap layer tetap dipisahkan.
 
 ---
 
@@ -638,7 +710,7 @@ Skenario tersebut mencakup authentication, authorization middleware, token secur
 ### 1. Masuk ke folder project
 
 ```bash
-cd tugas05
+cd tugas06
 ```
 
 ### 2. Install dependency
@@ -649,18 +721,23 @@ go mod tidy
 
 ### 3. Konfigurasi environment
 
-Buat `.env` berdasarkan `.env.example` dan isi:
+Gunakan `.env.example` sebagai referensi konfigurasi.
 
-```env
-DB_PASSWORD=PASSWORD_POSTGRES
-JWT_SECRET=JWT_SECRET_MINIMAL_32_KARAKTER
-```
+Pastikan PostgreSQL dan konfigurasi JWT dari Modul 5 tersedia.
 
 ### 4. Jalankan migration
 
-```bash
-psql -U postgres -d db_students -f migrations/001_create_students.sql
-psql -U postgres -d db_students -f migrations/002_auth.sql
+Jalankan migration Modul 6 sesuai urutan migration pada project.
+
+Migration mencakup:
+
+```text
+roles
+permissions
+role_permissions
+owner_id
+foreign key
+index
 ```
 
 ### 5. Jalankan server
@@ -677,53 +754,134 @@ http://localhost:3000
 
 ---
 
-## Konvensi Commit
+## Analisis Desain
 
-Pengerjaan Modul 5 menggunakan pendekatan **Conventional Commits** untuk mendokumentasikan progres implementasi secara bertahap.
+### Mengapa ownership tidak ditaruh di middleware?
 
-Kategori yang digunakan:
+Middleware tidak mengetahui isi row:
 
-| Prefix     | Penggunaan                              |
-| :--------- | :-------------------------------------- |
-| `feat`     | Fitur baru                              |
-| `fix`      | Perbaikan bug                           |
-| `refactor` | Restrukturisasi tanpa mengubah perilaku |
-| `test`     | Pengujian                               |
-| `docs`     | Dokumentasi                             |
-| `chore`    | Dependency, konfigurasi, dan tooling    |
+```text
+/students/7
+```
+
+hanya memberi informasi bahwa target ID adalah:
+
+```text
+7
+```
+
+Middleware tidak mengetahui:
+
+```text
+owner_id dari student 7
+```
+
+Jika middleware melakukan query hanya untuk authorization, service kemungkinan akan melakukan query yang sama lagi.
+
+Karena itu pembagian yang digunakan adalah:
+
+```text
+Middleware
+    |
+    +-- keputusan berbasis role/permission
+
+Service
+    |
+    +-- keputusan berbasis data/ownership
+```
 
 ---
 
-## Catatan
+### Risiko Dua Tempat Pemeriksaan
 
-* `JWT_SECRET` wajib memiliki minimal 32 karakter.
-* File `.env` tidak boleh di-commit.
-* Password tidak pernah dikembalikan dalam response JSON.
-* Refresh token disimpan dalam database sebagai hash.
-* Role ditentukan oleh server pada saat registrasi.
-* Endpoint `/students` membutuhkan access token.
-* Endpoint `POST /students` tidak tersedia pada Modul 5.
-* Refresh token menggunakan mekanisme rotation.
-* Login memiliki rate limiter berdasarkan IP.
-* Request body dibatasi hingga 1 MB.
-* CORS menggunakan daftar origin yang dikonfigurasi melalui environment variable.
+Pembagian ini memiliki konsekuensi: endpoint baru dapat lupa memasang permission middleware.
+
+Mitigasi yang digunakan:
+
+1. Semua endpoint student tetap berada di bawah `RequireAuth`.
+2. Matriks authorization diperlakukan sebagai kontrak.
+3. Setiap endpoint diuji terhadap role yang relevan.
+
+Dengan demikian route juga berfungsi sebagai peta hak akses aplikasi.
+
+---
+
+### RBAC untuk Relasi Dosen-Mahasiswa
+
+RBAC murni tidak cukup untuk aturan seperti:
+
+```text
+"Dosen hanya boleh melihat mahasiswa bimbingannya."
+```
+
+Pertanyaan tersebut tidak hanya bergantung pada role:
+
+```text
+role == dosen
+```
+
+tetapi juga hubungan:
+
+```text
+dosen X membimbing mahasiswa Y?
+```
+
+Untuk kebutuhan tersebut, pendekatan yang dipertimbangkan adalah tabel relasi:
+
+```text
+dosen_mahasiswa
+├── dosen_id
+└── mahasiswa_id
+```
+
+atau pendekatan ABAC.
+
+Untuk konteks proyek ini, relasi tabel dianggap lebih sederhana dan lebih mudah diaudit.
+
+---
+
+## Keterbatasan
+
+Karena role berada di JWT yang bersifat stateless, perubahan role tidak langsung mengubah access token yang sudah diterbitkan.
+
+Contoh:
+
+```text
+Token lama:
+role = user
+
+Database:
+role = staff
+```
+
+Token lama tetap membawa role `user` sampai expiration.
+
+Untuk sistem yang membutuhkan pencabutan hak secara langsung, alternatifnya adalah:
+
+* Mengecek role ke database pada setiap request.
+* Menggunakan token revocation / blocklist.
+* Menggunakan access token dengan lifetime yang lebih pendek.
+
+Untuk modul ini, perilaku tersebut didokumentasikan sebagai trade-off desain.
 
 ---
 
 ## Repositori
 
-Kode sumber Modul 5:
+Kode sumber Modul 6:
 
-`https://github.com/vxpal3n/go-workspace/tree/main/tugas05`
+`https://github.com/vxpal3n/go-workspace/tree/main/tugas06`
 
 ---
 
 ## Sumber Bantuan
 
-* Dokumentasi Go
-* Dokumentasi Fiber v2
-* Dokumentasi PostgreSQL
-* Dokumentasi JWT
-* Dokumentasi bcrypt
+* Dokumentasi Go.
+* Dokumentasi Fiber v2.
+* Dokumentasi PostgreSQL.
+* Dokumentasi JWT.
+* Dokumentasi bcrypt.
+* Referensi HTTP status code.
+* Materi praktikum Pemrograman Backend Lanjut (SIP375).
 
 Beberapa bagian implementasi dan dokumentasi dibantu oleh alat bantu AI untuk debugging dan penyusunan struktur, sedangkan logika utama disesuaikan dengan kebutuhan praktikum.

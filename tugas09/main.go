@@ -64,11 +64,15 @@ func main() {
 	)
 	studentService := service.NewStudentService(studentRepository, permissions)
 
+	courseRepository := repository.NewCourseRepository(pool)
+	courseService := service.NewCourseService(courseRepository)
+
 	app := config.NewApp(logger, route.Dependencies{
 		Pool:           pool,
 		JWT:            jwtManager,
 		Permissions:    permissions,
 		StudentService: studentService,
+		CourseService:  courseService,
 		AuthService:    authService,
 	})
 

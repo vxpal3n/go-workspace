@@ -17,6 +17,7 @@ type Dependencies struct {
 	JWT            *helper.JWTManager
 	Permissions    *helper.PermissionSet
 	StudentService *service.StudentService
+	CourseService  *service.CourseService
 	AuthService    *service.AuthService
 }
 
@@ -33,6 +34,14 @@ func Register(app *fiber.App, deps Dependencies) {
 	auth.Get("/me", middleware.RequireAuth(deps.JWT), deps.AuthService.Me)
 
 	perms := deps.Permissions
+
+	courses := api.Group("/courses",
+		middleware.RequireJSON,
+		middleware.RequireAuth(deps.JWT))
+
+	courses.Get("/", deps.CourseService.List)
+	courses.Get("/mine", deps.CourseService.Mine)
+	courses.Get("/:id", deps.CourseService.Get)
 
 	students := api.Group("/students",
 		middleware.RequireJSON,

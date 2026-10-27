@@ -24,7 +24,7 @@ const (
 )
 
 func main() {
-	mode := flag.String("mode", "crowd", "crowd | credits | swap")
+	mode := flag.String("mode", "crowd", "crowd | credits | swap | supervisor")
 	flag.Parse()
 
 	_ = godotenv.Load()
@@ -71,6 +71,8 @@ func main() {
 		runCredits(ctx, pool, students, tokens)
 	case "swap":
 		runSwap(ctx, pool, students, tokens)
+	case "supervisor":
+		runSupervisor(ctx, pool, students, tokens)
 	default:
 		fatal("mode", fmt.Errorf("tidak dikenal: %s", *mode))
 	}
@@ -183,6 +185,99 @@ func runCredits(ctx context.Context, pool *pgxpool.Pool, students []model.Studen
 	}
 }
 
+func runSupervisor(ctx context.Context, pool *pgxpool.Pool, students []model.Student, tokens []string) {
+	_ = tokens
+
+	admin, err := findAdmin(ctx, pool)
+	if err != nil {
+		fatal("find admin", err)
+	}
+	jwt := helper.NewJWTManager(
+		os.Getenv("JWT_SECRET"),
+		os.Getenv("JWT_ISSUER"),
+		60*time.Minute,
+	)
+	adminToken, err := jwt.GenerateAccess(admin)
+	if err != nil {
+		fatal("admin token", err)
+	}
+
+	var supervisorID int
+	_ = pool.QueryRow(ctx,
+		"SELECT id FROM supervisors ORDER BY id LIMIT 1").Scan(&supervisorID)
+
+	if _, err := pool.Exec(ctx,
+		"DELETE FROM supervisions WHERE supervisor_id = $1", supervisorID); err != nil {
+		fatal("reset supervisions", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`UPDATE supervisors SET quota = 3, version = 1, supervised_count = 0
+		 WHERE id = $1`, supervisorID); err != nil {
+		fatal("reset supervisor", err)
+	}
+
+	fmt.Printf("30 mahasiswa berebut pembimbing id=%d (kuota 3) secara serentak...\n", supervisorID)
+	fmt.Printf("  (menggunakan ADMIN token — endpoint assign dijaga supervision:manage)\n")
+
+	start := time.Now()
+	tally := fire(30, func(i int) string {
+		return doAssign(adminToken, supervisorID, students[i].ID)
+	})
+	elapsed := time.Since(start)
+
+	fmt.Println("\nHasil request:")
+	printTally(tally)
+	fmt.Printf("Waktu total: %v\n", elapsed)
+
+	var count, rows int
+	_ = pool.QueryRow(ctx,
+		"SELECT supervised_count FROM supervisors WHERE id = $1", supervisorID).Scan(&count)
+	_ = pool.QueryRow(ctx,
+		"SELECT COUNT(*) FROM supervisions WHERE supervisor_id = $1", supervisorID).Scan(&rows)
+
+	verdict := "TIDAK KONSISTEN"
+	if count == 3 && rows == 3 {
+		verdict = "KONSISTEN"
+	}
+	fmt.Printf("pembimbing supervised_count=%d baris supervisions=%d -> %s\n",
+		count, rows, verdict)
+}
+
+func findAdmin(ctx context.Context, pool *pgxpool.Pool) (model.Student, error) {
+	var s model.Student
+	err := pool.QueryRow(ctx,
+		"SELECT id, nim, name, role FROM students WHERE role = 'admin' LIMIT 1").
+		Scan(&s.ID, &s.NIM, &s.Name, &s.Role)
+	return s, err
+}
+
+func doAssign(token string, supervisorID, studentID int) string {
+	url := fmt.Sprintf("%s/supervisors/%d/assign", baseURL, supervisorID)
+	body := fmt.Sprintf(`{"student_id":%d}`, studentID)
+	req, _ := http.NewRequest("POST", url, strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "ERR_NETWORK"
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+
+	switch resp.StatusCode {
+	case 200:
+		return "200 OK"
+	case 409:
+		return "409 CONFLICT"
+	case 500:
+		return "500 INTERNAL"
+	default:
+		return fmt.Sprintf("HTTP_%d", resp.StatusCode)
+	}
+}
+
 func runSwap(ctx context.Context, pool *pgxpool.Pool, students []model.Student, tokens []string) {
 	fromID, err := findCourseID(ctx, pool, "IF101")
 	if err != nil {
@@ -215,7 +310,6 @@ func runSwap(ctx context.Context, pool *pgxpool.Pool, students []model.Student, 
 
 	fmt.Printf("%d pasang mahasiswa pindah kelas berlawanan arah secara serentak...\n", len(jobs))
 
-	// Catat deadlock sebelum
 	var dlBefore int
 	_ = pool.QueryRow(ctx,
 		"SELECT deadlocks FROM pg_stat_database WHERE datname = current_database()").

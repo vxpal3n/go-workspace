@@ -5,17 +5,22 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/jackc/pgx/v5"
 
 	"tugas09/app/repository"
+	"tugas09/app/model"
 	"tugas09/helper"
 )
 
+var errCreditLimit = errors.New("batas SKS terlampaui")
+
 type CourseService struct {
 	courses repository.CourseRepository
+	tx      *repository.TxManager
 }
 
-func NewCourseService(courses repository.CourseRepository) *CourseService {
-	return &CourseService{courses: courses}
+func NewCourseService(courses repository.CourseRepository, tx *repository.TxManager) *CourseService {
+	return &CourseService{courses: courses, tx: tx}
 }
 
 func (s *CourseService) List(c *fiber.Ctx) error {
@@ -78,6 +83,11 @@ func translateCourseError(err error) error {
 		return helper.NewError(fiber.StatusConflict, "COURSE_FULL", "kuota kelas sudah penuh")
 	case errors.Is(err, repository.ErrDuplicate):
 		return helper.NewError(fiber.StatusConflict, "ALREADY_ENROLLED", "Anda sudah terdaftar di kelas ini")
+	case errors.Is(err, repository.ErrNotEnrolled):
+		return helper.NewError(fiber.StatusConflict, "NOT_ENROLLED", "Anda tidak terdaftar di kelas tersebut")
+	case errors.Is(err, errCreditLimit):
+		return helper.NewError(fiber.StatusConflict, "CREDIT_LIMIT_EXCEEDED",
+			"batas "+strconv.Itoa(MaxCreditsPerSemester)+" SKS terlampaui")
 	default:
 		return helper.Internal(err)
 	}
@@ -97,23 +107,38 @@ func (s *CourseService) Enroll(c *fiber.Ctx) error {
 		return helper.BadRequest("id harus berupa angka positif")
 	}
 
-	course, err := s.courses.FindByID(ctx, courseID)
+	var enrolled model.Course
+	err := s.tx.WithTx(ctx, func(tx pgx.Tx) error {
+		repo := s.courses.WithTx(tx)
+
+		if err := repo.LockStudent(ctx, current.StudentID); err != nil {
+			return err
+		}
+
+		course, err := repo.FindByID(ctx, courseID)
+		if err != nil {
+			return err
+		}
+
+		taken, err := repo.SumCredits(ctx, current.StudentID)
+		if err != nil {
+			return err
+		}
+		if !WithinCreditLimit(taken, course.Credits) {
+			return errCreditLimit
+		}
+
+		enrolled, err = repo.IncrementEnrolled(ctx, courseID)
+		if err != nil {
+			return err
+		}
+
+		return repo.InsertEnrollment(ctx, courseID, current.StudentID)
+	})
 	if err != nil {
 		return translateCourseError(err)
 	}
 
-	if course.EnrolledCount >= course.Quota {
-		return translateCourseError(repository.ErrCourseFull)
-	}
-
-	if err := s.courses.InsertEnrollment(ctx, courseID, current.StudentID); err != nil {
-		return translateCourseError(err)
-	}
-	if err := s.courses.SetEnrolledCount(ctx, courseID, course.EnrolledCount+1); err != nil {
-		return translateCourseError(err)
-	}
-
-	course.EnrolledCount++
-	return helper.Created(c, "berhasil mendaftar kelas", course,
+	return helper.Created(c, "berhasil mendaftar kelas", enrolled,
 		"/api/v1/courses/"+strconv.Itoa(courseID))
 }

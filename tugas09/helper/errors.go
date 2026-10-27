@@ -1,4 +1,4 @@
-package helper
+	package helper
 
 import (
 	"fmt"
@@ -94,4 +94,8 @@ func Internal(cause error) *AppError {
 		Message: "terjadi kesalahan pada server",
 		cause:   cause,
 	}
+}
+
+func NewError(status int, code, message string) *AppError {
+	return &AppError{Status: status, Code: code, Message: message}
 }

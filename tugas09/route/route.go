@@ -43,6 +43,10 @@ func Register(app *fiber.App, deps Dependencies) {
 	courses.Get("/mine", deps.CourseService.Mine)
 	courses.Get("/:id", deps.CourseService.Get)
 
+	courses.Post("/:id/enroll",
+		middleware.RequireRole("user"),
+		deps.CourseService.Enroll)
+
 	students := api.Group("/students",
 		middleware.RequireJSON,
 		middleware.RequireAuth(deps.JWT),

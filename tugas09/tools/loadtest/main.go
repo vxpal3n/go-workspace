@@ -24,7 +24,7 @@ const (
 )
 
 func main() {
-	mode := flag.String("mode", "crowd", "crowd | credits")
+	mode := flag.String("mode", "crowd", "crowd | credits | swap")
 	flag.Parse()
 
 	_ = godotenv.Load()
@@ -69,6 +69,8 @@ func main() {
 		runCrowd(ctx, pool, tokens)
 	case "credits":
 		runCredits(ctx, pool, students, tokens)
+	case "swap":
+		runSwap(ctx, pool, students, tokens)
 	default:
 		fatal("mode", fmt.Errorf("tidak dikenal: %s", *mode))
 	}
@@ -178,6 +180,91 @@ func runCredits(ctx context.Context, pool *pgxpool.Pool, students []model.Studen
 		fmt.Printf("\nseluruh 10 mahasiswa <= 24 SKS -> KONSISTEN\n")
 	} else {
 		fmt.Printf("\n%d mahasiswa MELEBIHI 24 SKS -> TIDAK KONSISTEN\n", over)
+	}
+}
+
+func runSwap(ctx context.Context, pool *pgxpool.Pool, students []model.Student, tokens []string) {
+	fromID, err := findCourseID(ctx, pool, "IF101")
+	if err != nil {
+		fatal("find IF101", err)
+	}
+	toID, err := findCourseID(ctx, pool, "IF102")
+	if err != nil {
+		fatal("find IF102", err)
+	}
+
+	fmt.Println("Persiapan: enroll 20 mahasiswa ke IF101 dan 20 ke IF102...")
+	for i := 0; i < 20; i++ {
+		_ = doEnroll(tokens[i], fromID)
+	}
+	for i := 20; i < 40; i++ {
+		_ = doEnroll(tokens[i], toID)
+	}
+
+	type swapJob struct {
+		token    string
+		from, to int
+	}
+	var jobs []swapJob
+	for i := 0; i < 20; i++ {
+		jobs = append(jobs, swapJob{tokens[i], fromID, toID})
+	}
+	for i := 20; i < 40; i++ {
+		jobs = append(jobs, swapJob{tokens[i], toID, fromID})
+	}
+
+	fmt.Printf("%d pasang mahasiswa pindah kelas berlawanan arah secara serentak...\n", len(jobs))
+
+	// Catat deadlock sebelum
+	var dlBefore int
+	_ = pool.QueryRow(ctx,
+		"SELECT deadlocks FROM pg_stat_database WHERE datname = current_database()").
+		Scan(&dlBefore)
+
+	start := time.Now()
+	tally := fire(len(jobs), func(i int) string {
+		return doSwap(jobs[i].token, jobs[i].from, jobs[i].to)
+	})
+	elapsed := time.Since(start)
+
+	var dlAfter int
+	_ = pool.QueryRow(ctx,
+		"SELECT deadlocks FROM pg_stat_database WHERE datname = current_database()").
+		Scan(&dlAfter)
+
+	fmt.Println("\nHasil request:")
+	printTally(tally)
+	fmt.Printf("Waktu total: %v\n", elapsed)
+	fmt.Printf("deadlock terdeteksi PostgreSQL selama uji: %d\n", dlAfter-dlBefore)
+
+	reportConsistency(ctx, pool, fromID, "IF101")
+	reportConsistency(ctx, pool, toID, "IF102")
+}
+
+func doSwap(token string, fromID, toID int) string {
+	url := baseURL + "/enrollments/swap"
+	body := fmt.Sprintf(`{"from_course_id":%d,"to_course_id":%d}`, fromID, toID)
+	req, _ := http.NewRequest("POST", url, strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "ERR_NETWORK"
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+
+	switch resp.StatusCode {
+	case 200:
+		return "200 OK"
+	case 409:
+		return "409 CONFLICT"
+	case 500:
+		return "500 INTERNAL"
+	default:
+		return fmt.Sprintf("HTTP_%d", resp.StatusCode)
 	}
 }
 

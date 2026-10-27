@@ -67,6 +67,8 @@ func main() {
 	courseRepository := repository.NewCourseRepository(pool)
 	txManager := repository.NewTxManager(pool)
 	courseService := service.NewCourseService(courseRepository, txManager)
+	supervisorRepository := repository.NewSupervisorRepository(pool)
+	supervisorService := service.NewSupervisorService(supervisorRepository, txManager)
 
 	app := config.NewApp(logger, route.Dependencies{
 		Pool:           pool,
@@ -75,6 +77,7 @@ func main() {
 		StudentService: studentService,
 		CourseService:  courseService,
 		AuthService:    authService,
+		SupervisorService: supervisorService,
 	})
 
 	port := config.GetEnv("APP_PORT", "3000")

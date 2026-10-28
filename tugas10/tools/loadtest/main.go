@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -24,7 +26,7 @@ const (
 )
 
 func main() {
-	mode := flag.String("mode", "crowd", "crowd | credits | swap | supervisor")
+	mode := flag.String("mode", "crowd", "crowd | credits | swap | supervisor | portfolio-limit")
 	flag.Parse()
 
 	_ = godotenv.Load()
@@ -73,6 +75,8 @@ func main() {
 		runSwap(ctx, pool, students, tokens)
 	case "supervisor":
 		runSupervisor(ctx, pool, students, tokens)
+	case "portfolio-limit":
+		runPortfolioLimit(ctx, pool, students, tokens)
 	default:
 		fatal("mode", fmt.Errorf("tidak dikenal: %s", *mode))
 	}
@@ -439,4 +443,113 @@ func printTally(tally map[string]int) {
 func fatal(where string, err error) {
 	fmt.Fprintf(os.Stderr, "[%s] %v\n", where, err)
 	os.Exit(1)
+}
+
+func runPortfolioLimit(ctx context.Context, pool *pgxpool.Pool, students []model.Student, tokens []string) {
+	student := students[0]
+	token := tokens[0]
+	studentID := student.ID
+
+	fmt.Printf("Subjek uji: NIM=%s student_id=%d\n", student.NIM, studentID)
+
+	projects := make([]map[string]any, 18)
+	for i := 0; i < 18; i++ {
+		projects[i] = map[string]any{
+			"title":        fmt.Sprintf("Project %d", i+1),
+			"technologies": []string{"go"},
+			"year":         2026,
+		}
+	}
+	putBody := map[string]any{
+		"headline":     "Loadtest",
+		"bio":          "Portfolio limit test",
+		"projects":     projects,
+		"certificates": []any{},
+	}
+	code, _ := doJSON("PUT", fmt.Sprintf("%s/students/%d/portfolio", baseURL, studentID), token, putBody)
+	if code != 200 {
+		fatal("reset PUT portfolio", fmt.Errorf("HTTP %d", code))
+	}
+	fmt.Println("Persiapan selesai: portofolio berisi 18 proyek")
+
+	count, err := getProjectCount(token, studentID)
+	if err != nil {
+		fatal("verifikasi awal", err)
+	}
+	fmt.Printf("Verifikasi: %d proyek (harap 18)\n", count)
+
+	fmt.Println("Mengirim 10 permintaan tambah proyek serentak...")
+	start := time.Now()
+	tally := fire(10, func(i int) string {
+		code, _ := doJSON("POST",
+			fmt.Sprintf("%s/students/%d/portfolio/projects", baseURL, studentID),
+			token,
+			map[string]any{
+				"title":        fmt.Sprintf("Concurrent %d", i+1),
+				"technologies": []string{"go"},
+				"year":         2026,
+			})
+		return fmt.Sprintf("HTTP_%d", code)
+	})
+	elapsed := time.Since(start)
+
+	fmt.Println("\nHasil request:")
+	printTally(tally)
+	fmt.Printf("Waktu total: %v\n", elapsed)
+
+	finalCount, err := getProjectCount(token, studentID)
+	if err != nil {
+		fatal("verifikasi akhir", err)
+	}
+	verdict := "KONSISTEN"
+	if finalCount != 20 {
+		verdict = "TIDAK KONSISTEN"
+	}
+	fmt.Printf("Total proyek akhir: %d (harap 20) -> %s\n", finalCount, verdict)
+}
+
+func doJSON(method, url, token string, body any) (int, string) {
+	var reader io.Reader
+	if body != nil {
+		b, _ := json.Marshal(body)
+		reader = bytes.NewReader(b)
+	}
+	req, _ := http.NewRequest(method, url, reader)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, ""
+	}
+	defer resp.Body.Close()
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(bodyBytes)
+}
+
+func getProjectCount(token string, studentID int) (int, error) {
+	req, _ := http.NewRequest("GET",
+		fmt.Sprintf("%s/students/%d/portfolio", baseURL, studentID), nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return 0, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	var parsed struct {
+		Data struct {
+			Projects []any `json:"projects"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return 0, err
+	}
+	return len(parsed.Data.Projects), nil
 }

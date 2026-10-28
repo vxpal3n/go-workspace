@@ -31,10 +31,23 @@ func main() {
 
 	pool, err := database.NewPool(context.Background())
 	if err != nil {
-		logger.Error("gagal terhubung ke database", slog.String("error", err.Error()))
+		logger.Error("gagal terhubung ke PostgreSQL", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 	defer pool.Close()
+
+	mongoClient, err := database.NewMongoClient(context.Background())
+	if err != nil {
+		logger.Error("gagal terhubung ke MongoDB", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = mongoClient.Disconnect(ctx)
+	}()
+	mongoDB := mongoClient.Database(config.GetEnv("MONGO_DATABASE", "praktikum_backend"))
 
 	jwtManager := helper.NewJWTManager(
 		jwtSecret,
@@ -49,35 +62,38 @@ func main() {
 		os.Exit(1)
 	}
 	permissions := helper.NewPermissionSet(rawPermissions)
-	logger.Info("permission dimuat",
-		slog.Any("roles", permissions.KnownRoles()))
+	logger.Info("permission dimuat", slog.Any("roles", permissions.KnownRoles()))
 
 	studentRepository := repository.NewStudentRepository(pool)
 	tokenRepository := repository.NewTokenRepository(pool)
+	courseRepository := repository.NewCourseRepository(pool)
+	reviewRepository := repository.NewReviewRepository(mongoDB)
+
+	if err := reviewRepository.EnsureIndexes(context.Background()); err != nil {
+		logger.Error("gagal membuat index MongoDB", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	logger.Info("index MongoDB course_reviews siap")
+
+	txManager := repository.NewTxManager(pool)
 
 	authService := service.NewAuthService(
-		studentRepository,
-		tokenRepository,
-		jwtManager,
-		permissions,
+		studentRepository, tokenRepository, jwtManager, permissions,
 		time.Duration(config.GetEnvInt("JWT_REFRESH_TTL_DAYS", 7))*24*time.Hour,
 	)
 	studentService := service.NewStudentService(studentRepository, permissions)
-
-	courseRepository := repository.NewCourseRepository(pool)
-	txManager := repository.NewTxManager(pool)
 	courseService := service.NewCourseService(courseRepository, txManager)
-	supervisorRepository := repository.NewSupervisorRepository(pool)
-	supervisorService := service.NewSupervisorService(supervisorRepository, txManager)
+	reviewService := service.NewReviewService(reviewRepository, courseRepository, permissions)
 
 	app := config.NewApp(logger, route.Dependencies{
 		Pool:           pool,
+		Mongo:          mongoClient,
 		JWT:            jwtManager,
 		Permissions:    permissions,
 		StudentService: studentService,
 		CourseService:  courseService,
+		ReviewService:  reviewService,
 		AuthService:    authService,
-		SupervisorService: supervisorService,
 	})
 
 	port := config.GetEnv("APP_PORT", "3000")

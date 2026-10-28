@@ -68,6 +68,13 @@ func main() {
 	tokenRepository := repository.NewTokenRepository(pool)
 	courseRepository := repository.NewCourseRepository(pool)
 	reviewRepository := repository.NewReviewRepository(mongoDB)
+	portfolioRepository := repository.NewPortfolioRepository(mongoDB)
+
+	if err := portfolioRepository.EnsureIndexes(context.Background()); err != nil {
+		logger.Error("gagal membuat index portfolio", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	logger.Info("index MongoDB student_portfolios siap")
 
 	if err := reviewRepository.EnsureIndexes(context.Background()); err != nil {
 		logger.Error("gagal membuat index MongoDB", slog.String("error", err.Error()))
@@ -85,6 +92,10 @@ func main() {
 	courseService := service.NewCourseService(courseRepository, txManager)
 	reviewService := service.NewReviewService(reviewRepository, courseRepository, permissions)
 
+	portfolioService := service.NewPortfolioService(
+		portfolioRepository, studentRepository, permissions,
+	)
+
 	app := config.NewApp(logger, route.Dependencies{
 		Pool:           pool,
 		Mongo:          mongoClient,
@@ -94,6 +105,7 @@ func main() {
 		CourseService:  courseService,
 		ReviewService:  reviewService,
 		AuthService:    authService,
+		PortfolioService: portfolioService,
 	})
 
 	port := config.GetEnv("APP_PORT", "3000")

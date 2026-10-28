@@ -33,6 +33,7 @@ type CourseRepository interface {
 
 	LockCourses(ctx context.Context, ids ...int) error
 	UpdateQuota(ctx context.Context, id, quota, version int) (model.Course, error)
+	IsEnrolled(ctx context.Context, courseID, studentID int) (bool, error)
 }
 
 const courseColumns = `id, code, name, credits, quota, enrolled_count, version, created_at`
@@ -235,4 +236,18 @@ func (r *coursePostgresRepository) UpdateQuota(ctx context.Context, id, quota, v
 		return model.Course{}, ErrVersionConflict
 	}
 	return model.Course{}, ErrQuotaBelowFilled
+}
+
+func (r *coursePostgresRepository) IsEnrolled(ctx context.Context, courseID, studentID int) (bool, error) {
+	var exists bool
+	err := r.db.QueryRow(ctx,
+		`SELECT EXISTS (
+			SELECT 1 FROM enrollments
+			WHERE course_id = $1 AND student_id = $2
+		)`,
+		courseID, studentID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("memeriksa pendaftaran: %w", err)
+	}
+	return exists, nil
 }
